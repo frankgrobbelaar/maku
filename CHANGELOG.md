@@ -12,6 +12,7 @@ shows these notes when it offers the update.
 
 - Home's 4K tile says what converting does to your 4K videos by your standard: "kept at 4K, HDR
   too", or "brought down to 1080p". English sound reads "in the files", not "dubbed".
+- A collection of films no longer offers "Most missing" as an order: a film misses no episodes.
 
 ## 0.1.0 - 2026-10-27
 

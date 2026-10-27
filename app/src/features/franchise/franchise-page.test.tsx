@@ -186,14 +186,15 @@ describe("FranchisePage", () => {
     ).toEqual(["Series 1", "Movies 1"]);
   });
 
-  it("lists every film together when what's missing or new comes first", async () => {
+  it("lists every film together when what's new comes first, and never sorts films by missing", async () => {
     fakeEngine({ "/franchises/7": COLLECTION });
     renderWithEngine(<FranchisePage />, "/franchises/7");
 
-    (await screen.findByRole("radio", { name: "Most missing" })).click();
+    (await screen.findByRole("radio", { name: "Recently added" })).click();
 
-    expect(await screen.findByText("3 films · most missing first")).toBeInTheDocument();
+    expect(await screen.findByText("3 films · newest added first")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Most missing" })).not.toBeInTheDocument();
   });
 
   it("sorts by name too, and leads to each film", async () => {

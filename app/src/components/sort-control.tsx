@@ -9,10 +9,17 @@ const SORTS = [
 ] as const;
 
 /** How a list of series and films is ordered. Release date, oldest first, is the default on every
- * page that lists them (the owner's choice). */
-export function SortControl(props: { value: TitleSort; onChange: (sort: TitleSort) => void }) {
+ * page that lists them (the owner's choice). A list of films alone has no "Most missing": a film
+ * misses no episodes. */
+export function SortControl(props: {
+  value: TitleSort;
+  onChange: (sort: TitleSort) => void;
+  episodes?: boolean;
+}) {
+  const options =
+    props.episodes === false ? SORTS.filter((sort) => sort.value !== "missing") : SORTS;
   return (
-    <Segmented label="Sort by" value={props.value} options={SORTS} onChange={props.onChange} />
+    <Segmented label="Sort by" value={props.value} options={options} onChange={props.onChange} />
   );
 }
 

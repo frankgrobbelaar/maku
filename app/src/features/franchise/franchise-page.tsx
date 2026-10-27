@@ -139,7 +139,11 @@ export function FranchisePage() {
                 className="w-56"
               />
             )}
-            <SortControl value={sort} onChange={setSort} />
+            <SortControl
+              value={sort}
+              onChange={setSort}
+              episodes={found.titles.some((title) => title.kind === "series")}
+            />
             {offered && (
               <>
                 <span aria-hidden="true" className="h-6 w-px bg-edge" />
