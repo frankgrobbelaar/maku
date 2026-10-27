@@ -13,6 +13,7 @@ import {
   type Hearable,
   type Library,
   type Scan,
+  type Settings,
   type TitleSort,
   useAddFolder,
   useCheckup,
@@ -94,7 +95,9 @@ export function HomePage() {
           <TilesSkeleton count={4} />
         </Loading>
       )}
-      {working && library.data && !empty && <Pictures library={library.data} />}
+      {working && library.data && !empty && (
+        <Pictures library={library.data} standard={settings.data?.standard ?? "4k"} />
+      )}
       {working && !empty && videos.length > 0 && <Languages videos={videos} />}
       {working && library.data && !empty && <Glance />}
       {working && library.data && !empty && <ContinueWatching />}
@@ -188,13 +191,18 @@ function ScanButtons({ scan }: { scan: Scan }) {
 }
 
 /** What's in the library, by picture size: the summary at the top of Home. Each size says what
- * converting does to it. */
-function Pictures({ library }: { library: Library }) {
+ * converting to the standard does to it: nothing is made bigger, and 4K stays 4K unless the
+ * standard is 1080p. */
+function Pictures({ library, standard }: { library: Library; standard: Settings["standard"] }) {
   const sizes = [
     { label: "SD", count: library.sd, note: "kept at its size" },
     { label: "720p", count: library.hd720, note: "kept at its size" },
     { label: "1080p", count: library.hd1080, note: "kept at 1080p" },
-    { label: "Larger", count: library.larger, note: "4K, or down to 1080p" },
+    {
+      label: "4K",
+      count: library.larger,
+      note: standard === "4k" ? "kept at 4K, HDR too" : "brought down to 1080p",
+    },
   ];
   const parts = shares(sizes.map((size) => size.count));
   return (
@@ -243,7 +251,7 @@ function Pictures({ library }: { library: Library }) {
   );
 }
 
-/** What the library's videos can be heard and read in: English sound (dubbed, from the files),
+/** What the library's videos can be heard and read in: English sound (in the files),
  * English subtitles (some of them Maku's), and neither. A video can have both, so the shares
  * aren't parts of one whole. */
 function Languages({ videos }: { videos: Hearable[] }) {
@@ -252,7 +260,7 @@ function Languages({ videos }: { videos: Hearable[] }) {
   const made = subtitled.filter((video) => video.made).length;
   const none = videos.filter((video) => !video.english).length;
   const tiles = [
-    { label: "English sound", count: sound, note: "dubbed, from the files" },
+    { label: "English sound", count: sound, note: "in the files" },
     {
       label: "English subtitles",
       count: subtitled.length,

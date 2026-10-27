@@ -519,7 +519,7 @@ describe("HomePage", () => {
     const languages = await screen.findByRole("region", { name: "Your videos by language" });
     const tiles = within(languages).getAllByRole("listitem");
     expect(tiles.map((tile) => tile.textContent)).toEqual([
-      "English sound25%1dubbed, from the files",
+      "English sound25%1in the files",
       "English subtitles25%11 of them made by Maku",
       "No English50%2neither sound nor subtitles",
     ]);

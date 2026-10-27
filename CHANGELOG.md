@@ -8,6 +8,11 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Changed
+
+- Home's 4K tile says what converting does to your 4K videos by your standard: "kept at 4K, HDR
+  too", or "brought down to 1080p". English sound reads "in the files", not "dubbed".
+
 ## 0.1.0 - 2026-10-27
 
 ### Added
