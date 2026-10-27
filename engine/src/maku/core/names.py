@@ -25,7 +25,7 @@ class Kind(StrEnum):
     SPECIAL = "special"  # a show's special: season 0
     MOVIE = "movie"
     EXTRA = "extra"  # trailers, featurettes and other extras, samples, creditless openings
-    DVD = "dvd"  # raw DVD files (VTS_01_1.VOB): unknown until matched
+    DVD = "dvd"  # a disc's own files (VTS_01_1.VOB, BDMV\STREAM\00000.m2ts): never taken surely
 
 
 @dataclass(frozen=True)
@@ -52,9 +52,10 @@ class ParsedName:
 
 
 def parse_name(path: PurePath) -> ParsedName:
+    if _DVD_FILE.match(path.name) or _blu_ray_stream(path):
+        title, year = _disc_name(path)
+        return ParsedName(Kind.DVD, folder_title=title, year=year)
     folder_title, folder_year, folder_season, folder_kind = _folder_context(path)
-    if _DVD_FILE.match(path.name):
-        return ParsedName(Kind.DVD, folder_title=folder_title, folder_season=folder_season)
 
     stem, is_copy = _without_copy_marker(_plain(path.stem))
     if _extra(path, stem):
@@ -183,6 +184,10 @@ _ANITOPY_KEYS = {
 }
 
 _DVD_FILE = re.compile(r"^(?:VTS_\d{2}_\d|VIDEO_TS)\.(?:VOB|IFO|BUP)$", re.IGNORECASE)
+# A Blu-ray's own stream file, in its BDMV\STREAM folder: "00000.m2ts".
+_BLU_RAY_STREAM = re.compile(r"^\d{5}\.m2ts$", re.IGNORECASE)
+# The folders a disc keeps its videos in: the disc's own folder, above them, names it.
+_DISC_FOLDERS = frozenset({"video_ts", "bdmv", "stream"})
 _COPY_MARKER = re.compile(
     r"\s*(?:\(copy\)|-\s*copy(?:\s*\(\d+\))?|\((?:[2-9]|[1-9]\d)\))\s*$", re.IGNORECASE
 )
@@ -474,6 +479,26 @@ _GENERAL_FOLDERS = frozenset(
         "tmp",
     }
 )
+
+
+def _blu_ray_stream(path: PurePath) -> bool:
+    """Whether a file is a Blu-ray's own stream, in its BDMV\\STREAM folder."""
+    folders = [folder.casefold() for folder in path.parts[-3:-1]]
+    return bool(_BLU_RAY_STREAM.match(path.name)) and folders == ["bdmv", "stream"]
+
+
+def _disc_name(path: PurePath) -> tuple[str | None, int | None]:
+    """The title and year a disc's own files go by: its folder's, above VIDEO_TS or BDMV\\STREAM
+    ("NORTHERN_LIGHTS_DISC1" is Northern Lights, "Starfall (2008)" Starfall of 2008). Nothing
+    when that folder is a library's ("Burnt", "DVDs")."""
+    folder = path.parent
+    while folder.name.casefold() in _DISC_FOLDERS and folder != folder.parent:
+        folder = folder.parent
+    title, year, _ = _folder_name(_plain(folder.name))
+    title = _DISC.sub("", title).strip(" ._-") if title else None
+    if not title or title.casefold() in _GENERAL_FOLDERS:
+        return None, None
+    return title, year
 
 
 def _folder_context(path: PurePath) -> tuple[str | None, int | None, int | None, Kind | None]:

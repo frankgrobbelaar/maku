@@ -455,3 +455,15 @@ def test_a_sure_match_spares_tmdb_the_other_kinds_search(
     assert placed(conn)["Glass Orchard - S01E01.mkv"][0] == "sure"
     searched = [path for path in web.paths() if "/search/" in path]
     assert searched == ["GET https://api.themoviedb.org/3/search/tv"]
+
+
+def test_a_burnt_discs_film_is_offered_but_never_taken(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(conn, root, ["Burnt/NORTHERN_LIGHTS/VIDEO_TS/VTS_01_1.VOB"], minutes=97)
+
+    identify(keyed, conn, internet())
+
+    row = conn.execute("SELECT matched, title_id, guesses FROM files").fetchone()
+    assert (row["matched"], row["title_id"]) == ("unsure", None)
+    assert json.loads(row["guesses"])[0]["title"] == "Northern Lights"

@@ -1049,3 +1049,32 @@ class TestSceneNames:
     )
     def test_a_releases_sample_is_an_extra(self, path: str):
         assert parsed(path).kind is Kind.EXTRA
+
+
+class TestDiscs:
+    """A disc's own files, as a burnt DVD or a Blu-ray copied whole keeps them: the disc's folder
+    names it."""
+
+    @pytest.mark.parametrize(
+        ("path", "title", "year"),
+        [
+            (r"D:\Videos\Burnt\NORTHERN_LIGHTS\VIDEO_TS\VTS_01_1.VOB", "NORTHERN LIGHTS", None),
+            (
+                r"D:\Videos\Burnt\NORTHERN_LIGHTS_DISC1\VIDEO_TS\VTS_02_3.VOB",
+                "NORTHERN LIGHTS",
+                None,
+            ),
+            (r"D:\Videos\Movies\Starfall (2008)\BDMV\STREAM\00000.m2ts", "Starfall", 2008),
+            (r"D:\Videos\Starfall (2008)\VTS_01_1.VOB", "Starfall", 2008),
+        ],
+    )
+    def test_a_discs_folder_names_it(self, path: str, title: str, year: int | None):
+        result = parsed(path)
+
+        assert (result.kind, result.folder_title, result.year) == (Kind.DVD, title, year)
+
+    def test_a_library_folder_names_no_disc(self):
+        assert parsed(r"D:\Videos\DVDs\VIDEO_TS\VTS_01_1.VOB").best_title is None
+
+    def test_a_stream_file_outside_a_blu_rays_folders_is_a_video(self):
+        assert parsed(r"D:\Videos\Starfall (2008)\00000.m2ts").kind is not Kind.DVD

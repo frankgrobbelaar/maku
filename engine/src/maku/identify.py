@@ -338,7 +338,8 @@ class Identifier:
         """Matches one group's files, or leaves them for the owner. Returns (sure, unsure)."""
         stamp = self._now().isoformat()
         best = ranked[0] if ranked else None
-        home = self._title_for(conn, best.entry, tmdb) if best and best.confidence >= SURE else None
+        sure = best is not None and best.confidence >= SURE and not group.disc
+        home = self._title_for(conn, best.entry, tmdb) if best and sure else None
         if best is None or home is None:
             _mark_unsure(conn, group.files, ranked, stamp)
             return 0, len(group.files)
@@ -753,7 +754,7 @@ def _facts(conn: sqlite3.Connection, file_ids: Sequence[int]) -> list[FileFacts]
 
 def _to_identify(conn: sqlite3.Connection) -> tuple[list[FileFacts], list[tuple[int, Kind]]]:
     """Files read and not yet identified (the owner's own choices excepted): the ones to look up,
-    and the extras and disc files that can't be."""
+    and the extras and the files with no name to look up that can't be."""
     rows = conn.execute(
         """SELECT id, path, duration FROM files
            WHERE gone_at IS NULL AND probed_at IS NOT NULL AND identified_at IS NULL
@@ -765,7 +766,7 @@ def _to_identify(conn: sqlite3.Connection) -> tuple[list[FileFacts], list[tuple[
     for row in rows:
         path = PureWindowsPath(row["path"])
         parsed = parse_name(path)
-        if parsed.kind in (Kind.EXTRA, Kind.DVD) or not parsed.best_title:
+        if parsed.kind is Kind.EXTRA or not parsed.best_title:
             others.append((row["id"], parsed.kind))
             continue
         minutes = row["duration"] / 60 if row["duration"] else None

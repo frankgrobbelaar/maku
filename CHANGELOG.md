@@ -8,6 +8,13 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+
+- Burnt DVDs and Blu-rays copied whole: their files (`VIDEO_TS`, `BDMV\STREAM`) are named by the
+  disc's own folder ("NORTHERN_LIGHTS_DISC1" is Northern Lights), so "Which title is this?" offers
+  the right film first. Maku never takes one on its own, as no name says which part of a disc a
+  file is.
+
 ### Changed
 
 - Home's 4K tile says what converting does to your 4K videos by your standard: "kept at 4K, HDR

@@ -60,9 +60,13 @@ behaviour, so swapping parsers later is safe.
 - **Copies and samples.** `(copy)`, ` - Copy` and ` (2)` are removed before parsing and set
   `is_copy`. A release's sample (`starfall.2008.1080p-sample.mkv`, `Starfall 2008 sample.mkv`, or
   anything in a `Sample` folder) is an extra, never the film.
+- **Discs.** A disc's own files, as a burnt DVD (`VIDEO_TS\VTS_01_1.VOB`) or a Blu-ray copied whole
+  (`BDMV\STREAM\00000.m2ts`) keeps them, go by the disc's folder above those: `NORTHERN_LIGHTS_DISC1`
+  is Northern Lights, `Starfall (2008)` Starfall of 2008; a library's folder (`DVDs`, `Burnt`) names
+  none. They're looked up as a film and offered on "Which title is this?", never taken on their own:
+  which part of a disc a file is, no name says.
 - **Kinds.** Episode, special (season 0, or a name that says so), movie (no episode number), extra
-  (a sample, a trailer, a menu, a creditless opening or ending) or DVD file (`VTS_01_1.VOB`, unknown
-  until matched).
+  (a sample, a trailer, a menu, a creditless opening or ending) or a disc's own file.
 - **Clean titles.** Type and release words at the end of a title (`Movie`, `Final`) are removed,
   but not `End`, which anitopy reads as a release's word wherever it is and titles end with; a
   title that is only a number becomes the episode (`05.mkv` in a season's folder). A year in

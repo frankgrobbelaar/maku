@@ -41,6 +41,9 @@ class Group:
     movie: bool  # every file looks like a film
     files: tuple[FileFacts, ...]
     series: str | None = None  # a numbered film's series, whose name its own follows
+    # A disc's own files (VIDEO_TS): its folder names a film, offered to the owner, never taken
+    # surely, as which part of a disc a file is no name says.
+    disc: bool = False
 
     @property
     def longest_episode(self) -> int | None:
@@ -70,14 +73,15 @@ def group_files(files: Iterable[FileFacts]) -> list[Group]:
     """Files that look like the same series or film, by their title (from the name or the
     folder) and by whether they're films; a film's year too, as a remake takes its name again.
     Files without any title can't be looked up, so they're left out."""
-    grouped: dict[tuple[str, bool, int | None], list[FileFacts]] = {}
-    names: dict[tuple[str, bool, int | None], Counter[str]] = {}
+    grouped: dict[tuple[str, bool, int | None, bool], list[FileFacts]] = {}
+    names: dict[tuple[str, bool, int | None, bool], Counter[str]] = {}
     for facts in files:
         title = facts.parsed.best_title
-        if not title or facts.parsed.kind in (Kind.EXTRA, Kind.DVD):
+        if not title or facts.parsed.kind is Kind.EXTRA:
             continue
-        movie = facts.parsed.kind is Kind.MOVIE
-        key = (normalize(title), movie, facts.parsed.year if movie else None)
+        disc = facts.parsed.kind is Kind.DVD
+        movie = disc or facts.parsed.kind is Kind.MOVIE
+        key = (normalize(title), movie, facts.parsed.year if movie else None, disc)
         grouped.setdefault(key, []).append(facts)
         names.setdefault(key, Counter())[title] += 1
     groups: list[Group] = []
@@ -92,6 +96,7 @@ def group_files(files: Iterable[FileFacts]) -> list[Group]:
                 movie=key[1],
                 files=tuple(members),
                 series=series.most_common(1)[0][0] if series else None,
+                disc=key[3],
             )
         )
     return sorted(groups, key=lambda group: (group.query.casefold(), group.movie, group.year or 0))
