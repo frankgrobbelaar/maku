@@ -1,0 +1,123 @@
+{
+  "about": "Everything Maku downloads to a PC: the one list the installer shows and the engine follows. Maku downloads nothing that isn't here, and uses its own downloads only when their size and SHA-256 match (each file's, for a download that comes as several). See docs/releasing.md.",
+  "downloads": [
+    {
+      "id": "webview2",
+      "name": "Microsoft Edge WebView2",
+      "version": "current",
+      "purpose": "Draws Maku's window. Windows 11 has it; on a PC without it, the installer fetches Microsoft's installer for it.",
+      "licence": "Microsoft's WebView2 Runtime terms",
+      "home": "https://developer.microsoft.com/microsoft-edge/webview2/",
+      "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+      "size": null,
+      "sha256": null,
+      "keep": null,
+      "by": "installer"
+    },
+    {
+      "id": "ffmpeg",
+      "name": "ffmpeg",
+      "version": "9.0.2",
+      "purpose": "Reads what each video holds, and converts it. Maku fetches it the first time it starts.",
+      "licence": "LGPL-2.1-or-later",
+      "home": "https://ffmpeg.org",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip",
+      "size": 76972461,
+      "sha256": "7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646",
+      "keep": "bin",
+      "by": "maku"
+    },
+    {
+      "id": "speech-best",
+      "name": "Whisper medium",
+      "version": "fp16 d397824",
+      "purpose": "OpenAI's speech model, for English subtitles at Best: it hears what's said in a video and writes it in English. Maku fetches it the first time you make subtitles at Best.",
+      "licence": "MIT",
+      "home": "https://github.com/openai/whisper",
+      "url": null,
+      "size": 1530853088,
+      "sha256": null,
+      "keep": null,
+      "by": "maku",
+      "when": "asked",
+      "files": [
+        {
+          "name": "config.json",
+          "url": "https://huggingface.co/onnx-community/whisper-medium-ONNX/resolve/d3978248a6b5de6df7ec29ddfbde3993845fa806/config.json",
+          "size": 1389,
+          "sha256": "6f05735b8279a8eaadf51b276909151687cb94dc6d1eb2a32e6e9bfd36ea1c49"
+        },
+        {
+          "name": "generation_config.json",
+          "url": "https://huggingface.co/onnx-community/whisper-medium-ONNX/resolve/d3978248a6b5de6df7ec29ddfbde3993845fa806/generation_config.json",
+          "size": 3780,
+          "sha256": "060a0ba092ee90ee7124d00c00376ded564e6e4edf3f2c4a19a1a35076a1b91c"
+        },
+        {
+          "name": "vocab.json",
+          "url": "https://huggingface.co/onnx-community/whisper-medium-ONNX/resolve/d3978248a6b5de6df7ec29ddfbde3993845fa806/vocab.json",
+          "size": 1036584,
+          "sha256": "50d6a919f0a0601d56a04eb583c780d18553aa388254ba3158eb6a00f13e2c1a"
+        },
+        {
+          "name": "encoder_model_fp16.onnx",
+          "url": "https://huggingface.co/onnx-community/whisper-medium-ONNX/resolve/d3978248a6b5de6df7ec29ddfbde3993845fa806/onnx/encoder_model_fp16.onnx",
+          "size": 614716372,
+          "sha256": "484945b595277c996a752ede76f7c46af79c701757692120521e3f46bc6d94e4"
+        },
+        {
+          "name": "decoder_model_merged_fp16.onnx",
+          "url": "https://huggingface.co/onnx-community/whisper-medium-ONNX/resolve/d3978248a6b5de6df7ec29ddfbde3993845fa806/onnx/decoder_model_merged_fp16.onnx",
+          "size": 915094963,
+          "sha256": "90ebba7592ac20b38b0b335182d6e4f079e9a65fb6c70b2d9446fd2663b14146"
+        }
+      ]
+    },
+    {
+      "id": "speech-fast",
+      "name": "Whisper small",
+      "version": "fp16 36050c4",
+      "purpose": "OpenAI's smaller speech model, for English subtitles at Fast. Maku fetches it the first time you make subtitles at Fast.",
+      "licence": "MIT",
+      "home": "https://github.com/openai/whisper",
+      "url": null,
+      "size": 486233536,
+      "sha256": null,
+      "keep": null,
+      "by": "maku",
+      "when": "asked",
+      "files": [
+        {
+          "name": "config.json",
+          "url": "https://huggingface.co/onnx-community/whisper-small/resolve/36050c46d777d46dc4b5f43f6d90574fc38f8732/config.json",
+          "size": 2227,
+          "sha256": "457854d452f17661e197d74aee12b8e74fb75ba30ebfaa7426d0d61ea1e08a18"
+        },
+        {
+          "name": "generation_config.json",
+          "url": "https://huggingface.co/onnx-community/whisper-small/resolve/36050c46d777d46dc4b5f43f6d90574fc38f8732/generation_config.json",
+          "size": 3893,
+          "sha256": "f538b28220c6a6d6f1af1458d4141cacb4ef4963df3de98a19490440c412ddf0"
+        },
+        {
+          "name": "vocab.json",
+          "url": "https://huggingface.co/onnx-community/whisper-small/resolve/36050c46d777d46dc4b5f43f6d90574fc38f8732/vocab.json",
+          "size": 1036584,
+          "sha256": "50d6a919f0a0601d56a04eb583c780d18553aa388254ba3158eb6a00f13e2c1a"
+        },
+        {
+          "name": "encoder_model_fp16.onnx",
+          "url": "https://huggingface.co/onnx-community/whisper-small/resolve/36050c46d777d46dc4b5f43f6d90574fc38f8732/onnx/encoder_model_fp16.onnx",
+          "size": 176607756,
+          "sha256": "5549cd8666ff4b694ceb128bfa48b95bdcceec29075cf2c2212f90002cc058de"
+        },
+        {
+          "name": "decoder_model_merged_fp16.onnx",
+          "url": "https://huggingface.co/onnx-community/whisper-small/resolve/36050c46d777d46dc4b5f43f6d90574fc38f8732/onnx/decoder_model_merged_fp16.onnx",
+          "size": 308583076,
+          "sha256": "22aba6c7f5193701cbe1519051b6ef097eb530ad6887b7093065ec59b830f61d"
+        }
+      ]
+    }
+  ]
+}

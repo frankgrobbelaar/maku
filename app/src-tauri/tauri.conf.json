@@ -1,0 +1,54 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Maku",
+  "version": "../package.json",
+  "identifier": "io.github.frankgrobbelaar.maku",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Maku",
+        "width": 1280,
+        "height": 832,
+        "minWidth": 720,
+        "minHeight": 560,
+        "center": true,
+        "decorations": false,
+        "visible": false,
+        "backgroundColor": "#0b0c0f"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Maku",
+    "category": "Video",
+    "shortDescription": "Organise, check and convert a library of series and movies",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/frankgrobbelaar/maku/releases/latest/download/latest.json"],
+      "pubkey":"dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE5MTgxNEE5OTJFREE3NUIKUldSYnArMlNxUlFZcWNsN3h2WGE0SHF0UDNIdWVBZ3FsU3k5NFBEejhYTytDN1FFTlVOelFmWXgK",
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

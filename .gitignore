@@ -1,0 +1,23 @@
+# Engine (Python)
+engine/.venv/
+engine/build/
+engine/dist/
+engine/.dev-data/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# App (Node, Vite)
+app/node_modules/
+app/dist/
+
+# Shell (Rust, Tauri)
+app/src-tauri/target/
+app/src-tauri/gen/
+
+# Editors and Windows
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+*.log

@@ -1,0 +1,434 @@
+/*
+ * Maku's design tokens: Cinema's shapes, type and motion (Kura's), in Maku's four colour schemes.
+ *
+ * Every colour token reads its scheme's (--scheme-*, below the theme): Velvet (wine and crimson,
+ * brass for what's ready; the default), Lagoon (deep teal), Dusk (indigo and coral pink) and
+ * Graphite (black and white). The owner picks one in Settings > General, and the shell sets it on
+ * the page before its first frame (`data-scheme` on <html>). Tailwind turns each token into
+ * utilities: --color-accent gives bg-accent, text-accent, border-accent and so on. docs/design.md
+ * says when to use which; the Maku Schemes canvas (docs/design/) draws each scheme.
+ *
+ * A colour that differs in light mode is light-dark(light, dark): the page follows the window,
+ * which is light or dark as Windows is, or as the owner chose in Settings. A part that stays dark
+ * on a light page (the featured panel, a video) carries scheme-dark, and its colours follow.
+ */
+
+@theme {
+  /* Only Maku's values exist: Tailwind's own palette and scales are switched off. */
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --breakpoint-*: initial;
+  --animate-*: initial;
+
+  /* Colour. Artwork brings the colour; the interface stays near-black in dark and near-white in
+     light, tinted by its scheme, with one accent. White and black are for what sits on artwork or
+     stays dark. Each token is its scheme's (below). */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Surfaces */
+  --color-window: var(--scheme-window);
+  --color-glass: var(--scheme-glass);
+  --color-edge: var(--scheme-edge);
+  --color-surface: var(--scheme-surface);
+  --color-raised: var(--scheme-raised);
+  --color-dialog: var(--scheme-dialog);
+  --color-inset: var(--scheme-inset);
+
+  /* Washes. Tint is white on dark and ink on light: bg-tint/6 is a chip, a tag or a hover. */
+  --color-tint: var(--scheme-tint);
+  --color-rule: var(--scheme-rule);
+  --color-field: var(--scheme-field);
+  --color-field-edge: var(--scheme-field-edge);
+  --color-well: var(--scheme-well);
+  --color-tag: var(--scheme-tag);
+
+  /* Text */
+  --color-fg: var(--scheme-fg);
+  --color-fg-soft: var(--scheme-fg-soft);
+  --color-fg-muted: var(--scheme-fg-muted);
+  --color-fg-faint: var(--scheme-fg-faint);
+
+  /* The one accent */
+  --color-accent: var(--scheme-accent);
+  --color-on-accent: var(--scheme-on-accent);
+  --color-accent-fg: var(--scheme-accent-fg);
+  --color-accent-fg-hover: var(--scheme-accent-fg-hover);
+
+  /* Status. Shape and label carry the meaning; colour only reinforces it. */
+  --color-ready: var(--scheme-ready);
+  --color-ready-edge: var(--scheme-ready-edge);
+  --color-converting: var(--scheme-converting);
+  --color-convert: var(--scheme-convert);
+  --color-convert-fg: var(--scheme-convert-fg);
+  --color-broken: var(--scheme-broken);
+  --color-broken-hatch: var(--scheme-broken-hatch);
+  --color-broken-fg: var(--scheme-broken-fg);
+  --color-missing: var(--scheme-missing);
+  --color-danger: var(--scheme-danger);
+  --color-on-danger: var(--scheme-on-danger);
+
+  /* Featured: the big "continue" panel, the same in light and dark */
+  --color-featured: var(--scheme-featured);
+  --color-featured-orb: var(--scheme-featured-orb);
+  --color-featured-sun: var(--scheme-featured-sun);
+
+  /* Lines, tracks and charts */
+  --color-track: var(--scheme-track);
+  --color-line: var(--scheme-line);
+  --color-line-strong: var(--scheme-line-strong);
+  --color-control: var(--scheme-control);
+  --color-chart: var(--scheme-chart);
+
+  /* Toast: the one surface in the other light, dark on light and light on dark */
+  --color-toast: var(--scheme-toast);
+  --color-on-toast: var(--scheme-on-toast);
+
+  /* Type. Manrope for words; Geist Mono for paths, sizes and times. */
+  --font-sans: "Manrope Variable", Manrope, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+
+  /* Sizes are named by their pixel size: text-13 is 13px. */
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px; /* body */
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-17: 17px;
+  --text-18: 18px;
+  --text-20: 20px;
+  --text-22: 22px;
+  --text-24: 24px;
+  --text-26: 26px;
+  --text-32: 32px;
+  --text-36: 36px;
+  --text-44: 44px;
+  --text-50: 50px;
+
+  /* Shape. Panels use 16 to 24, dialogs 28; buttons and chips are pills (rounded-full). */
+  --radius-2: 2px;
+  --radius-3: 3px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --radius-16: 16px;
+  --radius-18: 18px;
+  --radius-20: 20px;
+  --radius-22: 22px;
+  --radius-24: 24px;
+  --radius-26: 26px;
+  --radius-28: 28px;
+
+  /* Depth. In light, panels lift with a soft shadow of the scheme's own ink; on dark, glass
+     needs none. */
+  --shadow-dialog: 0 40px 80px -40px light-dark(rgb(var(--scheme-shade) / 0.35), rgb(0 0 0 / 0.8));
+  --shadow-toast: 0 20px 40px -24px light-dark(rgb(var(--scheme-shade) / 0.45), rgb(0 0 0 / 0.9));
+  --shadow-float: 0 24px 48px -24px light-dark(rgb(var(--scheme-shade) / 0.35), rgb(0 0 0 / 0.7));
+  --shadow-panel:
+    0 1px 2px light-dark(rgb(var(--scheme-shade) / 0.06), transparent),
+    0 12px 28px -20px light-dark(rgb(var(--scheme-shade) / 0.3), transparent);
+
+  /* Layout: compact below 900px, standard from 900, wide from 1440. */
+  --breakpoint-standard: 900px;
+  --breakpoint-wide: 1440px;
+
+  /*
+   * Motion explains what changed. One curve everywhere: a quick start and a soft landing.
+   * Durations: hover and press 120ms, toggles and chips 200ms, panels and pages 320ms,
+   * charts on first view 600-900ms.
+   */
+  --ease-cinema: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --animate-fade-up: fade-up 0.5s var(--ease-cinema) both;
+  --animate-pop: pop 0.45s var(--ease-cinema) both;
+  --animate-grow-x: grow-x 1s var(--ease-cinema) both;
+  --animate-grow-y: grow-y 0.9s var(--ease-cinema) both;
+  --animate-ring: ring 1.3s var(--ease-cinema) both;
+  --animate-pulse: pulse 1.6s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-card-in: card-in 0.32s var(--ease-cinema) both;
+  --animate-fade-in: fade-in 0.2s var(--ease-cinema) both;
+
+  /* A card over the page rises into place; what's behind it dims. */
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes grow-x {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes grow-y {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes ring {
+    from {
+      stroke-dashoffset: 100;
+    }
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+}
+
+/*
+ * The schemes. Velvet is the page's own until the shell says otherwise.
+ */
+
+:root,
+:root[data-scheme="velvet"] {
+  --scheme-window: light-dark(#f6efea, #120b0e);
+  --scheme-glass: light-dark(#fffaf7, rgb(247 238 240 / 0.045));
+  --scheme-edge: light-dark(#e7dfda, rgb(247 238 240 / 0.08));
+  --scheme-surface: light-dark(#ebe3df, #1d1619);
+  --scheme-raised: light-dark(#fffaf7, #1b1417);
+  --scheme-dialog: light-dark(#fffaf7, #191215);
+  --scheme-inset: light-dark(#f2ebe6, #0d080a);
+  --scheme-tint: light-dark(#2a1519, #ffffff);
+  --scheme-rule: light-dark(#efe7e3, rgb(247 238 240 / 0.06));
+  --scheme-field: light-dark(#fffaf7, rgb(247 238 240 / 0.05));
+  --scheme-field-edge: light-dark(#ded5d1, rgb(247 238 240 / 0.12));
+  --scheme-well: light-dark(#ebe3df, rgb(247 238 240 / 0.05));
+  --scheme-tag: light-dark(rgb(255 250 247 / 0.9), rgb(18 11 14 / 0.6));
+  --scheme-fg: light-dark(#2a1519, #f7eef0);
+  --scheme-fg-soft: light-dark(#3e2b2e, #d7ced0);
+  --scheme-fg-muted: light-dark(#635254, #a9a1a3);
+  --scheme-fg-faint: light-dark(#736364, #847c7f);
+  --scheme-accent: light-dark(#b52f48, #c8374f);
+  --scheme-on-accent: #ffffff;
+  --scheme-accent-fg: light-dark(#9c2239, #ff97a8);
+  --scheme-accent-fg-hover: light-dark(#7a1629, #ffc0cb);
+  --scheme-ready: light-dark(#c9973a, #d6a84f);
+  --scheme-ready-edge: light-dark(#8f6418, transparent);
+  --scheme-converting: light-dark(#a8771c, #f0d59a);
+  --scheme-convert: light-dark(#5c74b8, #7d93c9);
+  --scheme-convert-fg: light-dark(#2f4682, #cbd6f2);
+  --scheme-broken: light-dark(#d0402f, #ff7a6b);
+  --scheme-broken-hatch: light-dark(#f7d9d3, #381d1d);
+  --scheme-broken-fg: light-dark(#9c3023, #ffb6ae);
+  --scheme-missing: light-dark(#a09392, #90888a);
+  --scheme-danger: light-dark(#bf3528, #ff8f80);
+  --scheme-on-danger: light-dark(#ffffff, #2a0b0b);
+  --scheme-track: light-dark(#eae2dd, #2d2629);
+  --scheme-line: light-dark(#ded5d1, #312a2d);
+  --scheme-line-strong: light-dark(#b9aeab, #40383b);
+  --scheme-control: light-dark(#8a7b7b, #60585b);
+  --scheme-chart: light-dark(#a89c9b, #70686b);
+  --scheme-toast: light-dark(#2a1519, #f7eef0);
+  --scheme-on-toast: light-dark(#fffaf7, #120b0e);
+  --scheme-featured: #3b0d1b;
+  --scheme-featured-orb: #d6a24e;
+  --scheme-featured-sun: #f5d491;
+  --scheme-shade: 60 15 24; /* the ink of its light shadows */
+}
+
+:root[data-scheme="lagoon"] {
+  --scheme-window: light-dark(#eef5f4, #061113);
+  --scheme-glass: light-dark(#ffffff, rgb(236 246 246 / 0.045));
+  --scheme-edge: light-dark(#dde5e4, rgb(236 246 246 / 0.08));
+  --scheme-surface: light-dark(#e2e9e9, #121c1e);
+  --scheme-raised: light-dark(#ffffff, #0f1a1c);
+  --scheme-dialog: light-dark(#ffffff, #0d181a);
+  --scheme-inset: light-dark(#eaf1f0, #040c0d);
+  --scheme-tint: light-dark(#0e2225, #ffffff);
+  --scheme-rule: light-dark(#e6eeed, rgb(236 246 246 / 0.06));
+  --scheme-field: light-dark(#ffffff, rgb(236 246 246 / 0.05));
+  --scheme-field-edge: light-dark(#d3dcdb, rgb(236 246 246 / 0.12));
+  --scheme-well: light-dark(#e2e9e9, rgb(236 246 246 / 0.05));
+  --scheme-tag: light-dark(rgb(255 255 255 / 0.9), rgb(6 17 19 / 0.6));
+  --scheme-fg: light-dark(#0e2225, #ecf6f6);
+  --scheme-fg-soft: light-dark(#24373a, #ccd6d6);
+  --scheme-fg-muted: light-dark(#4d5d5f, #9ea8a9);
+  --scheme-fg-faint: light-dark(#5f6e70, #798484);
+  --scheme-accent: light-dark(#0d7f74, #2cc6b5);
+  --scheme-on-accent: light-dark(#ffffff, #032320);
+  --scheme-accent-fg: light-dark(#0a6b62, #74e6d9);
+  --scheme-accent-fg-hover: light-dark(#064d46, #a6f2e9);
+  --scheme-ready: light-dark(#13a395, #2cc6b5);
+  --scheme-ready-edge: light-dark(#0a6b62, transparent);
+  --scheme-converting: light-dark(#0d7f74, #a6f2e9);
+  --scheme-convert: light-dark(#4767c4, #6b84e0);
+  --scheme-convert-fg: light-dark(#2c4a9e, #c3cff7);
+  --scheme-broken: light-dark(#d9483b, #ff6b6b);
+  --scheme-broken-hatch: light-dark(#f8dedc, #2e1f21);
+  --scheme-broken-fg: light-dark(#a3362c, #ffaeae);
+  --scheme-missing: light-dark(#909c9d, #848f90);
+  --scheme-danger: light-dark(#c23a2e, #ff8a8a);
+  --scheme-on-danger: light-dark(#ffffff, #2a0b0b);
+  --scheme-track: light-dark(#e1e8e8, #222c2e);
+  --scheme-line: light-dark(#d3dcdb, #253032);
+  --scheme-line-strong: light-dark(#abb6b6, #343f40);
+  --scheme-control: light-dark(#778586, #545f60);
+  --scheme-chart: light-dark(#99a5a5, #646f70);
+  --scheme-toast: light-dark(#0e2225, #ecf6f6);
+  --scheme-on-toast: light-dark(#ffffff, #061113);
+  --scheme-featured: #0a3a3f;
+  --scheme-featured-orb: #ff7d5c;
+  --scheme-featured-sun: #ffc2ad;
+  --scheme-shade: 10 42 45; /* the ink of its light shadows */
+}
+
+:root[data-scheme="dusk"] {
+  --scheme-window: light-dark(#f3f1fa, #0c0a16);
+  --scheme-glass: light-dark(#ffffff, rgb(243 240 252 / 0.045));
+  --scheme-edge: light-dark(#e3e1eb, rgb(243 240 252 / 0.08));
+  --scheme-surface: light-dark(#e7e5ef, #181622);
+  --scheme-raised: light-dark(#ffffff, #15131f);
+  --scheme-dialog: light-dark(#ffffff, #13111d);
+  --scheme-inset: light-dark(#efedf6, #08070f);
+  --scheme-tint: light-dark(#1b1730, #ffffff);
+  --scheme-rule: light-dark(#ebe9f3, rgb(243 240 252 / 0.06));
+  --scheme-field: light-dark(#ffffff, rgb(243 240 252 / 0.05));
+  --scheme-field-edge: light-dark(#d9d7e2, rgb(243 240 252 / 0.12));
+  --scheme-well: light-dark(#e7e5ef, rgb(243 240 252 / 0.05));
+  --scheme-tag: light-dark(rgb(255 255 255 / 0.9), rgb(12 10 22 / 0.6));
+  --scheme-fg: light-dark(#1b1730, #f3f0fc);
+  --scheme-fg-soft: light-dark(#312d44, #d3d0dc);
+  --scheme-fg-muted: light-dark(#575469, #a4a2ae);
+  --scheme-fg-faint: light-dark(#696579, #807d89);
+  --scheme-accent: light-dark(#c92d62, #ff6f91);
+  --scheme-on-accent: light-dark(#ffffff, #2b0612);
+  --scheme-accent-fg: light-dark(#ab2350, #ffa3b9);
+  --scheme-accent-fg-hover: light-dark(#821a3c, #ffc9d6);
+  --scheme-ready: light-dark(#e0477a, #ff6f91);
+  --scheme-ready-edge: light-dark(#9c1f49, transparent);
+  --scheme-converting: light-dark(#ab2350, #ffc9d6);
+  --scheme-convert: light-dark(#5a52e0, #8a80ff);
+  --scheme-convert-fg: light-dark(#3b33b0, #d2ceff);
+  --scheme-broken: light-dark(#c4601a, #ffa15c);
+  --scheme-broken-hatch: light-dark(#f4e2d6, #332221);
+  --scheme-broken-fg: light-dark(#934814, #ffcba5);
+  --scheme-missing: light-dark(#9895a5, #8b8894);
+  --scheme-danger: light-dark(#a94a0f, #ffab7a);
+  --scheme-on-danger: light-dark(#ffffff, #2b1306);
+  --scheme-track: light-dark(#e6e4ee, #282632);
+  --scheme-line: light-dark(#d9d7e2, #2b2935);
+  --scheme-line-strong: light-dark(#b2b0bd, #3a3844);
+  --scheme-control: light-dark(#817d8f, #5b5864);
+  --scheme-chart: light-dark(#a19ead, #6b6874);
+  --scheme-toast: light-dark(#1b1730, #f3f0fc);
+  --scheme-on-toast: light-dark(#ffffff, #0c0a16);
+  --scheme-featured: #23175a;
+  --scheme-featured-orb: #ff8a5c;
+  --scheme-featured-sun: #ffc2a3;
+  --scheme-shade: 27 16 64; /* the ink of its light shadows */
+}
+
+:root[data-scheme="graphite"] {
+  --scheme-window: light-dark(#f4f4f3, #0d0e10);
+  --scheme-glass: light-dark(#ffffff, rgb(244 244 245 / 0.045));
+  --scheme-edge: light-dark(#e3e3e2, rgb(244 244 245 / 0.08));
+  --scheme-surface: light-dark(#e8e8e7, #191a1b);
+  --scheme-raised: light-dark(#ffffff, #161719);
+  --scheme-dialog: light-dark(#ffffff, #141517);
+  --scheme-inset: light-dark(#efefef, #090a0b);
+  --scheme-tint: light-dark(#111214, #ffffff);
+  --scheme-rule: light-dark(#ececeb, rgb(244 244 245 / 0.06));
+  --scheme-field: light-dark(#ffffff, rgb(244 244 245 / 0.05));
+  --scheme-field-edge: light-dark(#d9d9d8, rgb(244 244 245 / 0.12));
+  --scheme-well: light-dark(#e8e8e7, rgb(244 244 245 / 0.05));
+  --scheme-tag: light-dark(rgb(255 255 255 / 0.9), rgb(13 14 16 / 0.6));
+  --scheme-fg: light-dark(#111214, #f4f4f5);
+  --scheme-fg-soft: light-dark(#28292a, #d4d4d5);
+  --scheme-fg-muted: light-dark(#515152, #a5a6a7);
+  --scheme-fg-faint: light-dark(#636364, #808182);
+  --scheme-accent: light-dark(#16171a, #ececee);
+  --scheme-on-accent: light-dark(#ffffff, #111214);
+  --scheme-accent-fg: light-dark(#16171a, #ffffff);
+  --scheme-accent-fg-hover: light-dark(#000000, #ffffff);
+  --scheme-ready: light-dark(#2a2c31, #ececee);
+  --scheme-ready-edge: light-dark(#000000, transparent);
+  --scheme-converting: light-dark(#55575c, #ffffff);
+  --scheme-convert: light-dark(#4e6a94, #7c93b8);
+  --scheme-convert-fg: light-dark(#2e4566, #c9d5e8);
+  --scheme-broken: light-dark(#d9483b, #ff6b6b);
+  --scheme-broken-hatch: light-dark(#f8dedc, #341d1f);
+  --scheme-broken-fg: light-dark(#a3362c, #ffaeae);
+  --scheme-missing: light-dark(#959595, #8c8c8e);
+  --scheme-danger: light-dark(#c23a2e, #ff8a8a);
+  --scheme-on-danger: light-dark(#ffffff, #2a0b0b);
+  --scheme-track: light-dark(#e6e6e6, #292a2b);
+  --scheme-line: light-dark(#d9d9d8, #2c2d2f);
+  --scheme-line-strong: light-dark(#b0b0b0, #3b3c3e);
+  --scheme-control: light-dark(#7c7c7d, #5c5c5e);
+  --scheme-chart: light-dark(#9e9e9e, #6c6c6e);
+  --scheme-toast: light-dark(#111214, #f4f4f5);
+  --scheme-on-toast: light-dark(#ffffff, #0d0e10);
+  --scheme-featured: #1c1f24;
+  --scheme-featured-orb: #e8edf3;
+  --scheme-featured-sun: #ffffff;
+  --scheme-shade: 17 18 20; /* the ink of its light shadows */
+}

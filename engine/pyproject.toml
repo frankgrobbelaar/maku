@@ -1,0 +1,77 @@
+[project]
+name = "maku"
+version = "0.0.0"
+description = "Maku's engine: scans, identifies, plans and converts one library of series and films."
+requires-python = ">=3.14"
+license = "MIT"
+dependencies = [
+    "anitopy>=2.1.1",
+    "fastapi>=0.143.5",
+    "numpy>=2.5.4",
+    "onnxruntime-directml>=1.24.4",
+    "typer>=0.27.3",
+    "uvicorn>=0.54.0",
+    "watchdog>=6.0.0",
+]
+
+[project.scripts]
+maku = "maku.cli:app"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pyinstaller>=6.22.3",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv]
+required-version = ">=0.13.1"
+python-preference = "only-managed"  # the same uv-managed Python on every machine
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # import order
+    "N",       # naming
+    "UP",      # modern syntax
+    "B",       # likely bugs
+    "A",       # shadowed builtins
+    "C4",      # comprehensions
+    "SIM",     # simpler code
+    "PTH",     # pathlib over os.path
+    "RET",     # returns
+    "S",       # security
+    "PT",      # pytest style
+    "RUF",     # ruff's own rules
+]
+# Ranges are written with an en dash, as in "S01E04–E153" and "4–153", on purpose.
+allowed-confusables = ["–"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S603"]  # asserts, test tokens, starting the engine
+"tools/**" = ["S603"]  # build tools run cargo and rustc
+
+[tool.pyright]
+include = ["src", "tests", "tools"]
+extraPaths = ["src", "tools"]  # src is the default; tools so tests can import them
+typeCheckingMode = "strict"
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest]
+testpaths = ["tests"]
+pythonpath = ["tools"]
+strict = true
+addopts = ["-ra"]

@@ -1,0 +1,9 @@
+# Text files are stored with LF and checked out with LF on every machine.
+* text=auto eol=lf
+
+# Binary files are stored as they are.
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.onnx binary
