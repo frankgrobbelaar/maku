@@ -24,7 +24,7 @@ function job(id: number, more: Partial<Job> = {}): Job {
     episode: id,
     method: "reencode",
     state: "queued",
-    gpuSeconds: 3600,
+    gpuSeconds: 480,
     addedAt: "2026-10-11T10:00:00+02:00",
     startedAt: null,
     finishedAt: null,
@@ -53,18 +53,18 @@ const RUNNING: QueueStatus = {
   running: {
     job: job(5, { state: "running" }),
     stage: "converting",
-    frames: 22_000,
-    total: 34_920,
-    secondsLeft: 1080,
-    fps: 11.4,
+    frames: 41_200,
+    total: 65_400,
+    secondsLeft: 140,
+    fps: 171.6,
   },
   queued: [job(6), job(7), job(8, { season: 2, episode: 1, label: "Glass Orchard · S02E01" })],
-  gpuSeconds: 3 * 3600 + 1080,
+  gpuSeconds: 3 * 480 + 140,
   today: [
     job(3, { state: "done", outputSize: 412_000_000, finishedAt: "2026-10-11T13:16:00+02:00" }),
     job(9, {
       state: "failed",
-      label: "Northern Lights · S01E09",
+      label: "Quiet Hours · S01E04",
       problem: "The source file is damaged at 04:12. The original is untouched.",
       finishedAt: "2026-10-11T12:00:00+02:00",
       log: "ffmpeg version 8.0\n[h264 @ 0000] error while decoding MB 23 11\nStopped at frame 6,045 of 34,512.",
@@ -115,14 +115,14 @@ describe("QueuePage", () => {
 
     const now = await screen.findByRole("region", { name: "Now converting" });
     expect(now).toHaveTextContent("Glass Orchard · S01E05");
-    expect(now).toHaveTextContent("63% · 18 min left");
+    expect(now).toHaveTextContent("63% · 2 min left");
     expect(now).toHaveTextContent("Made HEVC 10-bit · 1920 × 1080");
     expect(screen.getByRole("img", { name: "Graphics card 97 percent busy" })).toBeInTheDocument();
     expect(now).toHaveTextContent("71 °C");
-    expect(now).toHaveTextContent("11.4 fps");
+    expect(now).toHaveTextContent("171.6 fps");
     expect(screen.getByText("Encode").closest("li")).toHaveAttribute("aria-current", "step");
     expect(
-      screen.getByText("Running · 3 in the queue · about 3 h of GPU time"),
+      screen.getByText("Running · 3 in the queue · about 26 min of GPU time"),
     ).toBeInTheDocument();
   });
 
@@ -351,8 +351,8 @@ describe("QueuePage", () => {
 
     const next = await screen.findByRole("region", { name: "Up next" });
     expect(next).toHaveTextContent("Glass Orchard · Season 1 · 2 left");
-    expect(next).toHaveTextContent("S01E06Glass Orchard (2012) - S01E06.mkvRe-encode≈ 1 h");
-    expect(next).toHaveTextContent("Glass Orchard · Season 2 · 1 left≈ 1 h");
+    expect(next).toHaveTextContent("S01E06Glass Orchard (2012) - S01E06.mkvRe-encode≈ 8 min");
+    expect(next).toHaveTextContent("Glass Orchard · Season 2 · 1 left≈ 8 min");
 
     fireEvent.keyDown(screen.getByRole("button", { name: "More for Glass Orchard · S01E07" }), {
       key: "Enter",
@@ -521,7 +521,7 @@ describe("QueuePage", () => {
     const today = await screen.findByRole("region", { name: "Today" });
     expect(today).toHaveTextContent("1converted1failed412 MBwritten");
     expect(today).toHaveTextContent(
-      "Northern Lights · S01E09 failed. The source file is damaged at 04:12. The original is untouched.",
+      "Quiet Hours · S01E04 failed. The source file is damaged at 04:12. The original is untouched.",
     );
     screen.getByRole("button", { name: "Try again" }).click();
 
