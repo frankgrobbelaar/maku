@@ -1,6 +1,6 @@
 [project]
 name = "maku"
-version = "0.0.0"
+version = "0.1.0"
 description = "Maku's engine: scans, identifies, plans and converts one library of series and films."
 requires-python = ">=3.14"
 license = "MIT"

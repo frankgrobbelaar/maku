@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.1.0 - 2026-10-27
+
 ### Added
 
 - Maku: one app for your TV series and movies, wherever they came from (discs you ripped or
@@ -32,3 +34,4 @@ shows these notes when it offers the update.
   series, clean names and tidy folders with undo, the queue and its nights, English subtitles made
   on your PC, the player, watched and Continue watching, Coming up, the overnight health check,
   search, History, backups, the tray and updates.
+
