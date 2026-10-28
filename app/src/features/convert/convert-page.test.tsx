@@ -12,7 +12,7 @@ import {
   type TitleSummary,
 } from "@/lib/engine";
 import { convertible } from "@/test/convert";
-import { fakeEngine, READY, SETTINGS, SYSTEM, UNCHECKED } from "@/test/engine";
+import { fakeEngine, NO_LIBRARY, READY, SETTINGS, SYSTEM, UNCHECKED } from "@/test/engine";
 import { ConvertPage } from "./convert-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -309,6 +309,19 @@ describe("ConvertPage", () => {
 
     expect(await screen.findByRole("checkbox", { name: /Season 1/ })).toBeInTheDocument();
     expect(kept.saved.standard).toBe("1080p");
+  });
+
+  it("says there are no videos yet, with no folder added, the standard still to choose", async () => {
+    withSettings({ "/convert": { ...OPTIONS, files: [] as never[] }, "/library": NO_LIBRARY });
+    renderConvert();
+
+    expect(await screen.findByRole("heading", { name: "No videos yet" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Add a folder on Home, and what isn't at your standard yet shows up here: HEVC 10-bit in MKV, none over 4K.",
+      ),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: "1080p" })).toBeInTheDocument();
   });
 
   it("queues what's chosen to start now, then shows the queue", async () => {

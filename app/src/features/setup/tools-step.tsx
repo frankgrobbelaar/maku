@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   type Tool,
   useDownloadTool,
+  useFolders,
   useSaveSettings,
   useScanAction,
   useSettings,
@@ -21,19 +22,24 @@ export function ToolsStep({ onBack }: { onBack: () => void }) {
   const stored = useSettings();
   const save = useSaveSettings();
   const scan = useScanAction();
+  const folders = useFolders();
   const navigate = useNavigate();
   // The speech models come the first time subtitles are asked for, not now.
   const needed = tools.data?.filter((tool) => tool.when === "setup");
   const ready = needed?.every((tool) => tool.state === "ready") ?? false;
+  // Folders skipped, for a PC with no videos on it yet: there's nothing to scan, and Home waits.
+  const none = folders.data?.length === 0;
   useTestOnce(ready);
 
-  function startScan() {
+  function finish() {
     if (!stored.data) return;
     save.mutate(
       { path: "/settings", body: { ...stored.data, setUp: true } },
       {
         onSuccess: () =>
-          scan.mutate({ path: "/scan" }, { onSuccess: () => void navigate("/scan") }),
+          none
+            ? void navigate("/")
+            : scan.mutate({ path: "/scan" }, { onSuccess: () => void navigate("/scan") }),
       },
     );
   }
@@ -54,17 +60,24 @@ export function ToolsStep({ onBack }: { onBack: () => void }) {
       {system.data && <ThisPc system={system.data} waiting={!ready} />}
       {(save.isError || scan.isError) && (
         <p role="alert" className="text-13 text-broken-fg">
-          The scan didn't start: {(save.error ?? scan.error)?.message}
+          {none ? "Setup couldn't finish" : "The scan didn't start"}:{" "}
+          {(save.error ?? scan.error)?.message}
         </p>
       )}
-      <Footer note="The first scan only looks: nothing is renamed or moved.">
+      <Footer
+        note={
+          none
+            ? "Nothing to scan yet: add a folder on Home once your videos are on this PC."
+            : "The first scan only looks: nothing is renamed or moved."
+        }
+      >
         <Button onClick={onBack}>Back</Button>
         <Button
           variant="primary"
           disabled={!ready || save.isPending || scan.isPending}
-          onClick={startScan}
+          onClick={finish}
         >
-          Start the first scan
+          {none ? "Finish" : "Start the first scan"}
         </Button>
       </Footer>
     </Panel>

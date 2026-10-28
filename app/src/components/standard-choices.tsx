@@ -34,14 +34,14 @@ export const NAMING = [
 // Made-up titles, as in every picture of Maku that goes public.
 const EXAMPLES = [
   {
-    from: "starfall_academy_01.mkv",
-    folder: "TV\\Starfall Academy (1989)\\Season 01\\",
-    name: "Starfall Academy (1989) - S01E01 - The First Bell.mkv",
+    from: "The.Harbour.Line.S01E01.720p.HDTV.x264-GRP.mkv",
+    folder: "TV\\The Harbour Line (2019)\\Season 01\\",
+    name: "The Harbour Line (2019) - S01E01 - Pilot.mkv",
   },
   {
-    from: "Last Light.avi",
-    folder: "Movies\\Starfall Academy - Last Light (2018)\\",
-    name: "Starfall Academy - Last Light (2018).avi",
+    from: "Starfall.2008.1080p.BluRay.x264-GRP.mkv",
+    folder: "Movies\\Starfall (2008)\\",
+    name: "Starfall (2008).mkv",
   },
 ];
 

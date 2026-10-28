@@ -20,6 +20,7 @@ import {
   type TidyResult,
   useApplyTidy,
   useIgnored,
+  useLibrary,
   useScan,
   useTidy,
   useUndoPlan,
@@ -36,6 +37,7 @@ export function TidyPage() {
   const navigate = useNavigate();
   const [keep, setKeep] = useState<string[]>([]);
   const proposal = useTidy(keep);
+  const library = useLibrary(); // none yet: no folder added, a PC with no videos on it
   const ignored = useIgnored().data?.length ?? 0;
   const apply = useApplyTidy();
   const undo = useUndoPlan();
@@ -160,10 +162,16 @@ export function TidyPage() {
         onMatch={() => void navigate("/match")}
       />
       {found.changes.length === 0 ? (
-        <EmptyState title="Everything is filed" illustration={<ShelfIllustration />}>
-          Every video Maku knows is filed where it belongs. New ones are proposed here when they
-          arrive.
-        </EmptyState>
+        library.data?.files === 0 ? (
+          <EmptyState title="No videos yet" illustration={<ShelfIllustration />}>
+            Add a folder on Home, and what Maku would rename, move or set aside shows up here.
+          </EmptyState>
+        ) : (
+          <EmptyState title="Everything is filed" illustration={<ShelfIllustration />}>
+            Every video Maku knows is filed where it belongs. New ones are proposed here when they
+            arrive.
+          </EmptyState>
+        )
       ) : (
         <>
           <div className="flex animate-fade-up flex-wrap items-center justify-between gap-3">

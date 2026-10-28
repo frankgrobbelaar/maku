@@ -61,8 +61,15 @@ export function FoldersStep({
           {add.error.message}
         </p>
       )}
-      <Footer note="Add as many as you like. Later scans only read what's new.">
+      <Footer
+        note={
+          none
+            ? "No videos here yet? Skip for now, and add a folder later on Home or in Settings."
+            : "Add as many as you like. Later scans only read what's new."
+        }
+      >
         <Button onClick={onBack}>Back</Button>
+        {none && <Button onClick={onContinue}>Skip for now</Button>}
         <Button variant={none ? "secondary" : "primary"} disabled={none} onClick={onContinue}>
           Continue
         </Button>

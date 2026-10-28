@@ -32,6 +32,7 @@ import {
   useConvertOptions,
   useEmptyQuarantine,
   useFranchises,
+  useLibrary,
   useQueue,
   useSaveSettings,
   useSettings,
@@ -61,6 +62,7 @@ export function ConvertPage() {
   const navigate = useNavigate();
   const options = useConvertOptions();
   const franchises = useFranchises();
+  const library = useLibrary();
   const queue = useQueue();
   const system = useSystem();
   const add = useAddToQueue();
@@ -117,21 +119,35 @@ export function ConvertPage() {
   }
   const files = options.data.files;
   if (files.length === 0) {
+    const none = library.data?.files === 0; // no folder added: a PC with no videos on it yet
     return (
       <>
         {header}
         <EmptyState
-          title="Everything is at your standard"
+          title={none ? "No videos yet" : "Everything is at your standard"}
           illustration={<ShelfIllustration />}
           action={
             settings && (
               <StandardPick settings={settings} onChange={(standard) => change({ standard })} />
             )
           }
-          note="Choose the other, and what's over it can be converted to it, Maku's own conversions too."
+          note={
+            none
+              ? undefined
+              : "Choose the other, and what's over it can be converted to it, Maku's own conversions too."
+          }
         >
-          Every video in your library is at your standard already: HEVC 10-bit in MKV, none over{" "}
-          {options.data.standard}. New ones show up here when a scan finds them.
+          {none ? (
+            <>
+              Add a folder on Home, and what isn't at your standard yet shows up here: HEVC 10-bit
+              in MKV, none over {options.data.standard}.
+            </>
+          ) : (
+            <>
+              Every video in your library is at your standard already: HEVC 10-bit in MKV, none over{" "}
+              {options.data.standard}. New ones show up here when a scan finds them.
+            </>
+          )}
         </EmptyState>
         {save.isError && <Unsaved message={save.error.message} />}
       </>

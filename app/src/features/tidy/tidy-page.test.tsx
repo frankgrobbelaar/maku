@@ -8,7 +8,7 @@ import {
   type ProposedChange,
   type TidyProposal,
 } from "@/lib/engine";
-import { fakeEngine, NO_SCAN, READY } from "@/test/engine";
+import { fakeEngine, NO_LIBRARY, NO_SCAN, READY } from "@/test/engine";
 import { TidyPage } from "./tidy-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -477,6 +477,21 @@ describe("TidyPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Everything is filed" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Apply/ })).not.toBeInTheDocument();
+  });
+
+  it("says there are no videos yet, with no folder added", async () => {
+    fakeEngine({
+      "/tidy": { ...PROPOSAL, changes: [], duplicates: [], waiting: 0 },
+      "/library": NO_LIBRARY,
+    });
+    renderTidy();
+
+    expect(await screen.findByRole("heading", { name: "No videos yet" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Add a folder on Home, and what Maku would rename, move or set aside shows up here.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("leads to the files set aside as not a series or film, even when none need a match", async () => {

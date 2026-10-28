@@ -107,6 +107,7 @@ function renderSetup(step?: string, engine: EngineStatus = READY) {
           <Routes>
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/scan" element={<p>The scan</p>} />
+            <Route path="/" element={<p>Home</p>} />
           </Routes>
         </MemoryRouter>
       </EngineProvider>
@@ -201,6 +202,30 @@ describe("SetupPage", () => {
     });
   });
 
+  it("goes on without a folder, for a PC with no videos on it yet", async () => {
+    const fetch = firstRun();
+    renderSetup("folders");
+
+    expect(
+      await screen.findByText(
+        "No videos here yet? Skip for now, and add a folder later on Home or in Settings.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    screen.getByRole("button", { name: "Skip for now" }).click();
+
+    expect(
+      await screen.findByRole("heading", { name: "Find your series and films" }),
+    ).toBeInTheDocument();
+    // The folders' row says what skipping means, and leads back to it.
+    expect(
+      await screen.findByText(
+        "Skipped for now: Maku has no videos to look at till you add a folder",
+      ),
+    ).toBeInTheDocument();
+    expect(sent(fetch, "POST", "/folders")).toHaveLength(0);
+  });
+
   it("says why a folder can't be added", async () => {
     firstRun({
       "POST /folders": () =>
@@ -273,7 +298,10 @@ describe("SetupPage", () => {
   });
 
   it("asks for the TMDB key on its own step, not with the tools", async () => {
-    firstRun({ "/tools": [{ ...FFMPEG, state: "ready", done: FFMPEG.size }] });
+    firstRun({
+      "/folders": [VIDEOS],
+      "/tools": [{ ...FFMPEG, state: "ready", done: FFMPEG.size }],
+    });
     renderSetup("tools");
 
     expect(await screen.findByRole("button", { name: "Start the first scan" })).toBeInTheDocument();
@@ -293,7 +321,7 @@ describe("SetupPage", () => {
   });
 
   it("downloads ffmpeg, then starts the first scan", async () => {
-    const fetch = firstRun();
+    const fetch = firstRun({ "/folders": [VIDEOS] });
     renderSetup("tools");
 
     expect(await screen.findByText(/NVIDIA GeForce GTX 1660 SUPER/)).toBeInTheDocument();
@@ -304,6 +332,7 @@ describe("SetupPage", () => {
 
   it("starts the first scan once the tools are ready, and remembers setup is done", async () => {
     const fetch = firstRun({
+      "/folders": [VIDEOS],
       "/tools": [{ ...FFMPEG, state: "ready", done: FFMPEG.size }, WHISPER],
     });
     renderSetup("tools");
@@ -319,6 +348,25 @@ describe("SetupPage", () => {
     const [[, put]] = sent(fetch, "PUT", "/settings") as [[unknown, RequestInit]];
     expect(JSON.parse(String(put.body))).toMatchObject({ setUp: true });
     expect(sent(fetch, "POST", "/scan")).toHaveLength(1);
+  });
+
+  it("finishes without a scan when no folder was added, and opens Home", async () => {
+    const fetch = firstRun({ "/tools": [{ ...FFMPEG, state: "ready", done: FFMPEG.size }] });
+    renderSetup("tools");
+
+    expect(
+      await screen.findByText(
+        "Nothing to scan yet: add a folder on Home once your videos are on this PC.",
+      ),
+    ).toBeInTheDocument();
+    const finish = screen.getByRole("button", { name: "Finish" });
+    await waitFor(() => expect(finish).toBeEnabled());
+    finish.click();
+
+    expect(await screen.findByText("Home")).toBeInTheDocument();
+    const [[, put]] = sent(fetch, "PUT", "/settings") as [[unknown, RequestInit]];
+    expect(JSON.parse(String(put.body))).toMatchObject({ setUp: true });
+    expect(sent(fetch, "POST", "/scan")).toHaveLength(0);
   });
 
   it("tests this PC once ffmpeg is ready, then says what it can do and how long it takes", async () => {

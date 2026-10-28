@@ -16,10 +16,11 @@ the docs is about any other kind of library.
 **Where it stands (2026-10-28):** built from Kura, made Maku's own: TMDB-only identification with
 scene names, collections, the four colour schemes and the curtain logo, the live-action standard
 (4K or 1080p, never bigger, HDR and every sound track kept), its own repo, pipelines, downloads
-page and docs. Releases are Claude's call until 1.0.0 (the owner, 2026-10-27: "As you work and
-develop, I want you to make releases as well ... until you are happy to release 1.0.0", "You are
-in control of the releases"); from 1.0.0 on, releasing is the owner's call. CHANGELOG.md has every
-release.
+page and docs. Reviewed, tested end to end on made-up files (a library of tiny real videos, TMDB
+stood in for) and released by Claude, as the owner asked (2026-10-27: "As you work and develop, I
+want you to make releases as well ... until you are happy to release 1.0.0", "You are in control
+of the releases"): 0.1.0 on 2026-10-27, then 0.2.0 and 1.0.0, the first meant for everyday use,
+on 2026-10-28. From 1.0.0 on, releasing is the owner's call. CHANGELOG.md has every release.
 
 ## Ground rules
 
@@ -128,7 +129,10 @@ Everything decided so far. Don't ask again; change only with the owner.
   be a separate app with its own name, repo etc."). Maku was the owner's pick of six names ("Maku
   sounds awesome!").
 - Point Maku at folders in any layout: one series per folder, season folders, films in folders of
-  their own or loose, or everything mixed in Downloads. Files live on local drives.
+  their own or loose, or everything mixed in Downloads. Files live on local drives. Setup's
+  folders can wait, as the owner had no series or films on the PC at first (2026-10-27: "Is it a
+  problem if I dont have any films, tv series on here now?"): "Skip for now", "Finish" opens Home,
+  and Home's "Add a folder" adds one and scans it.
 - **TMDB identifies everything**, with the owner's own free key: Maku asks for it in a Setup step of
   its own ("Find your series and films") and in Settings › Titles and artwork, and keeps it on the
   PC (Windows' DPAPI), never in the code or an export. Without a key Maku reads the videos but

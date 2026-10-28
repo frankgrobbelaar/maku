@@ -8,6 +8,17 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+Maku 1.0, the first version meant for everyday use. There's nothing to do on your part: it
+updates as any version does, and keeps everything you have.
+
+### Changed
+
+- Setup goes on without a folder, for a PC with no videos on it yet: "Skip for now", then
+  "Finish" opens Home, whose "Add a folder" adds one and scans it there and then.
+- Convert and Tidy up say "No videos yet" while there's no folder, rather than that everything
+  is done.
+- Setup's examples of clean names are an episode and a film, named as releases name them.
+
 ## 0.2.0 - 2026-10-28
 
 ### Added

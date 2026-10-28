@@ -142,15 +142,23 @@ function Done({ step, onChange }: { step: Step; onChange: (step: Step) => void }
             </Button>
           }
         >
-          <span className="flex flex-wrap gap-2">
-            {folders.data?.map((folder) => (
-              <FolderChip key={folder.id} path={folder.path} />
-            ))}
-          </span>
-          <span className="text-13 text-fg-muted">
-            A folder can hold many series and films in any layout, even mixed together. Maku works
-            out what is what.
-          </span>
+          {folders.data && !folders.data.length ? (
+            <span className="text-13 text-fg-muted">
+              Skipped for now: Maku has no videos to look at till you add a folder
+            </span>
+          ) : (
+            <>
+              <span className="flex flex-wrap gap-2">
+                {folders.data?.map((folder) => (
+                  <FolderChip key={folder.id} path={folder.path} />
+                ))}
+              </span>
+              <span className="text-13 text-fg-muted">
+                A folder can hold many series and films in any layout, even mixed together. Maku
+                works out what is what.
+              </span>
+            </>
+          )}
         </Row>
       );
     case "tmdb":

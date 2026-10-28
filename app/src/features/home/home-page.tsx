@@ -81,11 +81,7 @@ export function HomePage() {
         <EmptyState
           title="Your shelf is empty"
           illustration={<ShelfIllustration />}
-          action={
-            <Button variant="primary" onClick={() => void navigate("/setup?step=folders")}>
-              Add a folder
-            </Button>
-          }
+          action={<AddFirstFolder />}
         >
           Add a folder with series or films in it. Any layout, even everything in one folder.
         </EmptyState>
@@ -132,23 +128,8 @@ export function HomePage() {
  * what it found new or gone. */
 function ScanButtons({ scan }: { scan: Scan }) {
   const navigate = useNavigate();
-  const action = useScanAction();
-  const add = useAddFolder();
-  const [picking, setPicking] = useState(false);
+  const { action, add, picking, rescan, addFolder } = useAddAndScan();
   const scanning = scan.state === "running" || scan.state === "paused";
-
-  const rescan = () =>
-    action.mutate({ path: "/scan" }, { onSuccess: () => void navigate("/scan") });
-
-  async function addFolder() {
-    setPicking(true);
-    try {
-      const path = await pickFolder("Choose a folder with series or films in it");
-      if (path) add.mutate({ path: "/folders", body: { path } }, { onSuccess: rescan });
-    } finally {
-      setPicking(false);
-    }
-  }
 
   return (
     <div className="flex flex-col items-end gap-1.5">
@@ -181,6 +162,51 @@ function ScanButtons({ scan }: { scan: Scan }) {
           {scan.added !== null && scan.gone !== null && ` · ${scanChanges(scan.added, scan.gone)}`}
         </span>
       )}
+      {(add.isError || action.isError) && (
+        <p role="alert" className="text-13 text-broken-fg">
+          {(add.error ?? action.error)?.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Scanning again, and adding a folder, which a scan of it follows: by the page's title, and on
+ * the empty shelf once setup is done (a PC with no videos yet skips its folders). */
+function useAddAndScan() {
+  const navigate = useNavigate();
+  const action = useScanAction();
+  const add = useAddFolder();
+  const [picking, setPicking] = useState(false);
+
+  const rescan = () =>
+    action.mutate({ path: "/scan" }, { onSuccess: () => void navigate("/scan") });
+
+  async function addFolder() {
+    setPicking(true);
+    try {
+      const path = await pickFolder("Choose a folder with series or films in it");
+      if (path) add.mutate({ path: "/folders", body: { path } }, { onSuccess: rescan });
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  return { action, add, picking, rescan, addFolder };
+}
+
+/** The empty shelf's "Add a folder": the folder, then its scan. */
+function AddFirstFolder() {
+  const { action, add, picking, addFolder } = useAddAndScan();
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <Button
+        variant="primary"
+        disabled={picking || add.isPending || action.isPending}
+        onClick={() => void addFolder()}
+      >
+        Add a folder
+      </Button>
       {(add.isError || action.isError) && (
         <p role="alert" className="text-13 text-broken-fg">
           {(add.error ?? action.error)?.message}

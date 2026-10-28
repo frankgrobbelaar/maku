@@ -175,6 +175,24 @@ describe("HomePage", () => {
     expect(screen.queryByRole("heading", { name: "This copy of Maku" })).not.toBeInTheDocument();
   });
 
+  it("adds a folder from the empty shelf and scans it, setup being done", async () => {
+    const fetch = engineWith({
+      "POST /folders": { ...FOLDER, files: 0, problems: 0 },
+      "POST /scan": { ...NO_SCAN, state: "running", stage: "finding" },
+    });
+    renderHome(READY);
+    shell.invoke.mockImplementation(async (command: string) =>
+      command === "engine_status" ? READY : command === "pick_folder" ? "D:\\Videos" : undefined,
+    );
+
+    (await screen.findByRole("button", { name: "Add a folder" })).click();
+
+    expect(await screen.findByText("Scan")).toBeInTheDocument();
+    const [[, added]] = sent(fetch, "POST", "/folders") as [[unknown, RequestInit]];
+    expect(JSON.parse(String(added.body))).toEqual({ path: "D:\\Videos" });
+    expect(sent(fetch, "POST", "/scan")).toHaveLength(1);
+  });
+
   it("says Maku needs the TMDB key to find anything, and leads to where it goes", async () => {
     engineWith({
       "/folders": [FOLDER],
