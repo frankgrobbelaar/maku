@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 1.0.0 - 2026-10-28
+
 Maku 1.0, the first version meant for everyday use. There's nothing to do on your part: it
 updates as any version does, and keeps everything you have.
 
