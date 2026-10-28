@@ -68,7 +68,8 @@ loads `vite/client` types.
 
 One tool for lint, format and import sorting (`biome.json`, the recommended preset). It reads
 `.gitignore` from the repo root, skips `src-tauri/` and `dist/`, and understands Tailwind's CSS
-directives.
+directives. Biome formats Markdown and YAML too since 2.6, but it leaves the guides (`*.md`),
+written by hand like every other doc, and `pnpm-lock.yaml`, which is pnpm's, as they are.
 
 ```powershell
 pnpm lint      # check

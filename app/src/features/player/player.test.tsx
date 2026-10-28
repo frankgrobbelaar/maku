@@ -73,6 +73,15 @@ const READY_STATE: PlayerState = { ready: [0, 1], preparing: [], failed: [], sto
 
 let paused = true;
 
+function Start({ items, from }: { items: PlayItem[]; from: number | undefined }) {
+  const { play } = usePlayer();
+  return (
+    <button type="button" onClick={() => play(items, 0, from)}>
+      Start
+    </button>
+  );
+}
+
 function renderPlayer(
   answers: Record<string, unknown>,
   items = EPISODES,
@@ -87,20 +96,12 @@ function renderPlayer(
   shell.invoke.mockImplementation(async (command: string) =>
     command === "engine_status" ? READY : undefined,
   );
-  function Start() {
-    const { play } = usePlayer();
-    return (
-      <button type="button" onClick={() => play(items, 0, from)}>
-        Start
-      </button>
-    );
-  }
   const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queries}>
       <EngineProvider>
         <PlayerProvider>
-          <Start />
+          <Start items={items} from={from} />
           <PlayerLayer />
         </PlayerProvider>
       </EngineProvider>

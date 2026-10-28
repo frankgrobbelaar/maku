@@ -8,6 +8,11 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Changed
+
+- The window is built with the newest versions of the libraries it uses: React Router 8.5,
+  TanStack Query 5.105, Lucide's icons 1.61 and Vite 8.3.5.
+
 ## 1.0.0 - 2026-10-28
 
 Maku 1.0, the first version meant for everyday use. There's nothing to do on your part: it

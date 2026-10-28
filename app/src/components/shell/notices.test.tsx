@@ -21,14 +21,15 @@ function asked(fetch: ReturnType<typeof fakeEngine>, path: string): number {
   return fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === path).length;
 }
 
+function Listed() {
+  useHistory(); // a screen showing what the engine did
+  return <Notices />;
+}
+
 describe("Notices", () => {
   it("shows what the engine tells while the window is open, leading where it says", async () => {
     shell.invoke.mockResolvedValue(READY);
     const fetch = fakeEngine({ "/history": [] });
-    function Listed() {
-      useHistory(); // a screen showing what the engine did
-      return <Notices />;
-    }
     render(
       <QueryClientProvider client={new QueryClient()}>
         <EngineProvider>
