@@ -36,7 +36,7 @@ Maku uses it.
 | Python | 3.14 | The engine's language | [python.md](stack/python.md) |
 | uv | 0.13 | Python, packages, lockfile, running tools | [python.md](stack/python.md) |
 | Ruff, Pyright | 0.17, 1.1.414 | Python lint, format and strict types | [python.md](stack/python.md) |
-| FastAPI, Uvicorn, Pydantic | 0.143, 0.54, 2.14 | The engine's local API | [fastapi.md](stack/fastapi.md) |
+| FastAPI, Uvicorn, Pydantic | 0.162, 0.54, 2.14 | The engine's local API | [fastapi.md](stack/fastapi.md) |
 | Typer | 0.27 | The engine's command line | [fastapi.md](stack/fastapi.md) |
 | SQLite | bundled with Python | Maku's one database file | [sqlite.md](stack/sqlite.md) |
 | TMDB | API v3, the owner's key | Which series or film each video is: names, episode lists, collections, artwork | [tmdb.md](stack/tmdb.md) |
