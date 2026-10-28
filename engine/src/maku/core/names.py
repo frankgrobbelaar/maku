@@ -159,7 +159,7 @@ def parse_name(path: PurePath) -> ParsedName:
     aired: date | None = None
     scene = _scene(stem)
     if scene is not None and _a_films_number(scene, numbers, folder_season):
-        # A film's title ends in it: "Area.51.2015", "Paper Kites 2 (2003)". anitopy took it for
+        # A film's title ends in it: "Orchard.12.2015", "Paper Kites 2 (2003)". anitopy took it for
         # an episode's number, and what follows for the episode's title.
         numbers, episode_title = [], None
     # An episode code or an air date says which episode a file is, and that it is one.
@@ -450,7 +450,7 @@ _ID_TAG = re.compile(
 )
 # A film's edition written out after its title or year, which the end of the name, a bracket, the
 # year or the release's words follow: "Special Edition", "Director's Cut", "Theatrical Version".
-# Not a title that is one ("Director's Cut (2016)"), nor a show's name an episode follows ("Glass
+# Not a title that is one ("Deluxe Edition (2016)"), nor a show's name an episode follows ("Glass
 # Orchard Special Edition - 05").
 _EDITION = re.compile(
     r"(?<=[^\s._-])[\s._-]+(?:special(?:[\s._-]+extended)?|extended|collector'?s|ultimate|"
@@ -552,7 +552,7 @@ def _air_date(stem: str) -> tuple[re.Match[str], date | None] | None:
 
 def _a_films_number(scene: _Scene, numbers: list[int], folder_season: int | None) -> bool:
     """Whether the one number anitopy read is a word of a film's title, before the film's year:
-    "Area.51.2015", "Paper Kites 2 (2003)", "Paper Kites 2 The Long Way Home (2003)". Not after a
+    "Orchard.12.2015", "Paper Kites 2 (2003)", "Paper Kites 2 The Long Way Home (2003)". Not after a
     dash ("Glass Orchard - 05 (2012)") nor in a season's folder: there it's an episode's; nor,
     with words after it, written as an episode's is ("Glass Orchard 05 The Well (2012)")."""
     if scene.year is None or scene.episode is not None or scene.dated:
@@ -991,7 +991,7 @@ def _spaced(title: str | None, stem: str) -> str | None:
 
 def _types(found: dict[str, str | list[str]]) -> set[str]:
     """What kind of file a name says it is, in the words Maku knows: "Special", "Movie",
-    "Trailer". A word the title goes on after is the title's own: "A Very Special Night" is a
+    "Trailer". A word the title goes on after is the title's own: "A Very Special Harbour" is a
     film, "Glass Orchard Movie Night - 05" an episode. anitopy reads the word each time it's
     there, so one more than the title holds says what the file is: "The Special Ones Special 05"
     is a special."""

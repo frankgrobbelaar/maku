@@ -34,7 +34,7 @@ shows these notes when it offers the update.
 - Names Maku read wrongly:
   - A name like "Glass Orchard - 01 - .x.mkv" no longer stops the scan for good.
   - An episode named by its code alone ("S01E01 - Pilot.mkv") takes its show from its folder.
-  - Films whose titles end in a number ("Area 51 (2015)", "Paper Kites 2 (2003)") stay films,
+  - Films whose titles end in a number ("Orchard 12 (2015)", "Paper Kites 2 (2003)") stay films,
     and a film in parts ("pt1", "Part 2") is one film.
   - An episode titled "Blood Sample" is an episode, not a sample, and one titled "Part 2" is
     that episode, not the second part of its season.

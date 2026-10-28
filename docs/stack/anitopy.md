@@ -71,7 +71,7 @@ behaviour, so swapping parsers later is safe.
   (`_EDITION`: `Special Edition`, `Special.Extended.Edition`, `Collector's Edition`, `Director's
   Cut`, `Theatrical Version`), when the end of the name, a bracket, the year or the release's words
   follow it: its `Special` makes it no special, and a year after it is still the film's. A title
-  that is one (`Director's Cut (2016)`) stays, and so does a show's name an episode follows
+  that is one (`Deluxe Edition (2016)`) stays, and so does a show's name an episode follows
   (`Glass Orchard Special Edition - 05`).
 - **Films.** A film in a folder of its own, named as the folder is (`Starfall (2008)\Starfall
   (2008).mkv`, or Maku's own `… - pt1` for its first part), is that film, the way films are filed,
@@ -79,7 +79,7 @@ behaviour, so swapping parsers later is safe.
   its name: `film_part`) is one film, and the part is no episode and no part of its title; a
   `Part 2` after anything but a film's year may be a title's own (`… - The Long Night Part 2`). A
   film's title can hold a number, which anitopy takes for an episode's: before the film's year
-  (`Area.51.2015`, `Paper Kites 2 (2003)`, `Paper Kites 2 The Long Way Home (2003)`), the number is
+  (`Orchard.12.2015`, `Paper Kites 2 (2003)`, `Paper Kites 2 The Long Way Home (2003)`), the number is
   the title's, unless a dash comes before it (`Glass Orchard - 05 (2012)`), the file is in a
   season's folder, or words follow a number written as an episode's is (`Glass Orchard 05 The
   Well (2012)`). A series' release that
@@ -91,7 +91,7 @@ behaviour, so swapping parsers later is safe.
   - Christmas Special` one named Christmas Special (`Quiet.Hours.Christmas.Special` too, in Quiet
   Hours' folder); season 0 in a name (`S00E03`) or a `Specials` folder is a special too. A show whose name has the word keeps it as
   its name's: anitopy reads the word each time it's there, so `The Special Ones Special 05` is a
-  special (one more than the name holds) and `A Very Special Night (2015)` a film.
+  special (one more than the name holds) and `A Very Special Harbour (2015)` a film.
 - **Copies and samples.** `(copy)`, ` - Copy` and ` (2)` are removed before parsing and set
   `is_copy`. A release's sample (`starfall.2008.1080p-sample.mkv`, `Starfall 2008 sample.mkv`,
   `glass.orchard.s01e05.720p.hdtv-sample.mkv`, or anything in a `Sample` folder) is an extra, never

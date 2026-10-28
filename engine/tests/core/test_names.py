@@ -286,7 +286,7 @@ class TestKinds:
     @pytest.mark.parametrize(
         ("name", "kind", "title"),
         [
-            ("A Very Special Night (2015).mkv", Kind.MOVIE, "A Very Special Night"),
+            ("A Very Special Harbour (2015).mkv", Kind.MOVIE, "A Very Special Harbour"),
             ("Movie Night (2010).mkv", Kind.MOVIE, "Movie Night"),
             ("Glass Orchard Movie Night - 05.mkv", Kind.EPISODE, "Glass Orchard Movie Night"),
             (
@@ -1076,8 +1076,8 @@ class TestSceneNames:
                 {"title": "Quiet Hours", "folder_title": "Quiet Hours", "folder_season": 2},
             ),
             (  # a title that's a word a release uses, before its year
-                r"D:\Videos\Movies\The Web of Lies (2006).mkv",
-                {"kind": Kind.MOVIE, "title": "The Web of Lies", "year": 2006},
+                r"D:\Videos\Movies\The Web of Tides (2006).mkv",
+                {"kind": Kind.MOVIE, "title": "The Web of Tides", "year": 2006},
             ),
         ],
     )
@@ -1248,12 +1248,12 @@ class TestEpisodeCodes:
 
 
 class TestFilmsWithANumberInTheirTitles:
-    """A film's title can end in a number, which is no episode's: "Area 51", "Paper Kites 2"."""
+    """A film's title can end in a number, which is no episode's: "Orchard 12", "Paper Kites 2"."""
 
     @pytest.mark.parametrize(
         ("path", "title", "year"),
         [
-            (r"D:\Movies\Area.51.2015.1080p.WEB-DL.mkv", "Area 51", 2015),
+            (r"D:\Movies\Orchard.12.2015.1080p.WEB-DL.mkv", "Orchard 12", 2015),
             (r"D:\Movies\Paper Kites 2 (2003).mkv", "Paper Kites 2", 2003),
             (r"D:\Movies\Paper Kites 3 (2005).mkv", "Paper Kites 3", 2005),
             (r"D:\Movies\Paper Kites 2 (2003) - pt2.mkv", "Paper Kites 2", 2003),
@@ -1543,9 +1543,9 @@ class TestEditions:
         )
 
     def test_a_title_that_is_an_edition_stays_whole(self):
-        result = parsed(r"D:\Movies\Director's Cut (2016).mkv")
+        result = parsed(r"D:\Movies\Deluxe Edition (2016).mkv")
 
-        assert (result.kind, result.title, result.year) == (Kind.MOVIE, "Director's Cut", 2016)
+        assert (result.kind, result.title, result.year) == (Kind.MOVIE, "Deluxe Edition", 2016)
 
     def test_a_shows_special_is_still_one(self):
         result = parsed(r"D:\TV\Quiet Hours\Specials\Quiet Hours - Special - The Night Train.mkv")
