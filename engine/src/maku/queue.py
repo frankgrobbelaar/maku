@@ -61,6 +61,7 @@ from maku.convert import (
     ConvertError,
     InUseError,
     NoRoomError,
+    NothingToConvert,
     Programs,
     Progress,
     Stopped,
@@ -857,6 +858,8 @@ class Queue:
                         self._learn_conversion(conn, made, made_at - began)
         except Stopped:
             self._stopped(conn, job_id)
+        except NothingToConvert as passed:  # at the standard by its turn: passed over, saying why
+            self._finished(conn, job_id, "skipped", str(passed))
         except InUseError as error:
             self._waits(conn, job_id, str(error))
         except NoRoomError as error:

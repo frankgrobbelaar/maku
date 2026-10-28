@@ -139,17 +139,19 @@ export function totals(files: Convertible[]): Totals {
   };
 }
 
-/** A picture's size as the engine calls it: "SD", "720p", "1080p", "4K" or "8K", by the
- * smallest frame it fits (cinema's wider 4096 and 2048 included). */
+/** A picture's size as the engine calls it (core/standard.py's `size_name`): "SD", "720p",
+ * "1080p", "1440p", "4K" or "8K", by the smallest frame it fits, up to 7% wider (cinema's 4096
+ * and 2048) and as tall as 16:10 (1920x1200 is 1080p). */
 export function sizeName(width: number, height: number): string {
-  const frames: [number, number, string][] = [
-    [1024, 576, "SD"],
-    [1280, 720, "720p"],
-    [1920, 1080, "1080p"],
-    [3840, 2160, "4K"],
+  const frames: [number, string][] = [
+    [1024, "SD"],
+    [1280, "720p"],
+    [1920, "1080p"],
+    [2560, "1440p"],
+    [3840, "4K"],
   ];
-  const fits = frames.find(([w, h]) => width <= w * 1.07 && height <= h * 1.07);
-  return fits ? fits[2] : "8K";
+  const fits = frames.find(([w]) => width <= w * 1.07 && height <= (w * 10) / 16);
+  return fits ? fits[1] : "8K";
 }
 
 /** GPU time in words: "12 min", "1 h", "35 h", "12 days". */

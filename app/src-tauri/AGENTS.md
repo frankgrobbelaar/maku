@@ -36,9 +36,10 @@ process or updating belongs in the engine. Start with [../../AGENTS.md](../../AG
   `engine.rs` and `engine/tests/test_cli.py` together.
 - **The look is the shell's to keep.** Light or dark and the colour scheme (`Look`, `Scheme` in
   `look.rs`) mirror `app/src/lib/look.ts`, and each scheme's window colours (`Scheme::windows`)
-  match its `--scheme-window` in `app/src/styles/tokens.css`: change them together. The page is
-  told the scheme before its first frame (`window.__MAKU_SCHEME__`), so it never shows another
-  first.
+  match its `--scheme-window` in `app/src/styles/tokens.css`: change them together. The page wears
+  the scheme from its first frame: the initialization script (`window.__MAKU_SCHEME__` and
+  `app/src/lib/scheme-script.js`, embedded with `include_str!`) puts it on `<html>`. A choice is
+  shown first and saved second, so the window and the next start always agree.
 - **No secrets in the binary.** Updates need no login (the releases are public); the signing key
   never leaves `%USERPROFILE%\.tauri` and the GitHub secret; only the public key is in the config.
 - **Installer changes** (`hooks.nsh`, bundle settings): build an installer, then test a fresh

@@ -9,14 +9,17 @@ from pathlib import Path
 import pytest
 
 from maku import franchises, titles
+from maku.cache import Cache
 from maku.catalog import Catalog
 from maku.config import DataPaths
 from maku.core.catalog import TitleKind
 from maku.tmdb import API as TMDB
 from maku.web import Service
+from tests import services
 from tests.fake_web import FakeWeb, reply
 from tests.services import internet, with_key
 from tests.shelf import NOW, identify, library
+from tests.tmdb_data import collection, movie_details
 
 STARFALL, STARFALL_II, ASCENT, ORIGINS = -7101, -7102, -7103, -7104
 
@@ -112,6 +115,36 @@ def test_each_entry_is_asked_about_again_weekly_or_daily_while_its_still_to_come
     assert sorted(
         franchises.next_to_ask(starfall, NOW + timedelta(days=7, minutes=1), 6)
     ) == sorted([STARFALL, STARFALL_II, ASCENT, ORIGINS, 4101])
+
+
+def test_a_film_that_joins_a_collection_turns_up_when_its_films_are_asked_about_again(
+    paths: DataPaths, starfall: sqlite3.Connection
+):
+    embers = movie_details(
+        7105,
+        "Starfall: Embers",
+        date(2029, 6, 1),
+        0,
+        collection=services.STARFALL_COLLECTION,
+        status="Planned",
+    )
+    web = internet()
+    web.answers[f"GET {TMDB}/movie/7105"] = embers
+    web.answers[f"GET {TMDB}/collection/9101"] = collection(
+        *services.STARFALL_COLLECTION,
+        services.STARFALL,
+        services.STARFALL_II,
+        services.ASCENT,
+        services.ORIGINS,
+        embers,
+    )
+    kept = Catalog(paths, web, cache=Cache(paths.cache))  # with what identifying kept
+
+    while franchises.look_up(starfall, kept, NOW + timedelta(days=7, minutes=1)):
+        pass
+
+    names = [entry.name for entry in rest_of(starfall, "Starfall").titles]
+    assert names == ["Starfall II", "Starfall: Origins", "Starfall: Embers"]
 
 
 def test_a_film_tmdb_no_longer_has_is_left_out_and_asked_about_again_the_next_day(

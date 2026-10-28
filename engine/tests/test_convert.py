@@ -16,6 +16,7 @@ from maku.convert import (
     WORKING,
     ConvertError,
     InUseError,
+    NothingToConvert,
     Programs,
     Progress,
     Stopped,
@@ -25,6 +26,7 @@ from maku.convert import (
     start,
     work_of,
 )
+from maku.core import fields
 from maku.core.fields import Json
 from maku.core.library import QUARANTINE_FOLDER
 from maku.core.standard import FULL_HD, UHD, Standard
@@ -482,11 +484,60 @@ def test_a_file_to_remux_found_interlaced_is_encoded_anew(conn: sqlite3.Connecti
 def test_a_file_at_the_standard_by_now_has_nothing_to_convert(
     conn: sqlite3.Connection, episode: Path
 ):
+    original = episode.read_bytes()
+    commands: list[Sequence[str]] = []
     with conn:  # the standard changed since it joined: 4K HEVC 10-bit is at 4K
         conn.execute("UPDATE files SET probe = ?", (json.dumps(report(3840, 2160)),))
 
-    with pytest.raises(ConvertError, match="at your standard already"):
-        run(conn, programs(RESULT))
+    with pytest.raises(NothingToConvert, match="at your standard now"):  # not a failure
+        run(conn, programs(RESULT, commands))
+
+    assert commands == []
+    assert episode.read_bytes() == original
+
+
+def odd_sized(width: int, height: int) -> Json:
+    """A report whose picture is AV1 at an odd size, as encodes of films cropped to their picture
+    often are (1920x803)."""
+    found = report(width, height, codec="av1")
+    cast("list[dict[str, object]]", found["streams"])[0]["pix_fmt"] = "yuv420p10le"
+    return found
+
+
+def test_an_odd_size_is_made_even_and_checks_out(conn: sqlite3.Connection, episode: Path):
+    with conn:
+        conn.execute("UPDATE files SET probe = ?", (json.dumps(odd_sized(1920, 803)),))
+    commands: list[Sequence[str]] = []
+
+    run(conn, programs(report(1920, 802, tag=TAG), commands))
+
+    [made] = [command for command in commands if "-progress" in command]
+    assert made[made.index("-vf") + 1] == "crop=1920:802:0:0,format=p010le"
+    assert episode.read_text().startswith("converted")  # the result is in place
+    assert conn.execute("SELECT state FROM jobs").fetchone()[0] == "done"
+
+
+def with_subtitles(made: Json, *codecs: str) -> Json:
+    """A report with these subtitle tracks after its picture and sound."""
+    tracks = [{"codec_type": "subtitle", "codec_name": codec} for codec in codecs]
+    return {**made, "streams": [*cast("list[object]", made["streams"]), *tracks]}
+
+
+def test_a_recordings_teletext_is_left_out_and_the_rest_checks_out(
+    conn: sqlite3.Connection, episode: Path
+):
+    recorded = report(1920, 1080, codec="h264")
+    in_ts = {**recorded, "format": {**fields.mapping(recorded, "format"), "format_name": "mpegts"}}
+    recording = with_subtitles(in_ts, "dvb_subtitle", "dvb_teletext")
+    with conn:
+        conn.execute("UPDATE files SET probe = ?", (json.dumps(recording),))
+    commands: list[Sequence[str]] = []
+
+    run(conn, programs(with_subtitles(RESULT, "dvb_subtitle"), commands))
+
+    [made] = [command for command in commands if "-progress" in command]
+    assert "0:s:1" not in made  # MKV can't hold teletext
+    assert conn.execute("SELECT state FROM jobs").fetchone()[0] == "done"
 
 
 def test_programs_start_with_nothing_on_standard_input(monkeypatch: pytest.MonkeyPatch):
@@ -562,3 +613,15 @@ def test_the_tag_says_what_the_file_became(conn: sqlite3.Connection, episode: Pa
 
     [made] = [command for command in commands if "-progress" in command]
     assert f"MAKU=reencode to 1080p · Maku {__version__}" in made
+
+
+def test_a_1440p_picture_is_called_1440p(conn: sqlite3.Connection, episode: Path):
+    tag = f"reencode to 1440p · Maku {__version__}"  # not 4K
+    with conn:
+        conn.execute("UPDATE files SET probe = ?", (json.dumps(report(2560, 1440, codec="h264")),))
+    commands: list[Sequence[str]] = []
+
+    run(conn, programs(report(2560, 1440, tag=tag), commands))
+
+    [made] = [command for command in commands if "-progress" in command]
+    assert f"MAKU={tag}" in made

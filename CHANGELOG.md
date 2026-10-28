@@ -14,12 +14,62 @@ shows these notes when it offers the update.
   disc's own folder ("NORTHERN_LIGHTS_DISC1" is Northern Lights), so "Which title is this?" offers
   the right film first. Maku never takes one on its own, as no name says which part of a disc a
   file is.
+- A daily show's episodes named by their day ("The.Harbour.Line.2021.04.12") go to the episode
+  TMDB dates that day; a day with none, or with two, waits for you.
+- A name tagged with TMDB's id ("{tmdb-7206}", as media server apps write it) is that series or
+  film, found without a search.
 
 ### Changed
 
-- Home's 4K tile says what converting does to your 4K videos by your standard: "kept at 4K, HDR
-  too", or "brought down to 1080p". English sound reads "in the files", not "dubbed".
+- Home's tile of pictures larger than 1080p says what converting does to them by your standard:
+  "kept at its size, up to 4K", or "brought down to 1080p". English sound reads "in the files",
+  not "dubbed".
 - A collection of films no longer offers "Most missing" as an order: a film misses no episodes.
+- Pictures are named as people call them: 1440p is 1440p, not 4K, and a 1920x1200 picture is
+  1080p, kept at its size. A TS file's change reads "TS becomes MKV".
+
+### Fixed
+
+- Names Maku read wrongly:
+  - A name like "Glass Orchard - 01 - .x.mkv" no longer stops the scan for good.
+  - An episode named by its code alone ("S01E01 - Pilot.mkv") takes its show from its folder.
+  - Films whose titles end in a number ("Area 51 (2015)", "Paper Kites 2 (2003)") stay films,
+    and a film in parts ("pt1", "Part 2") is one film.
+  - An episode titled "Blood Sample" is an episode, not a sample, and one titled "Part 2" is
+    that episode, not the second part of its season.
+  - A daily show's episodes ("2019.01.15") are no longer taken for episode 1.
+  - Language and release words after a year ("2008.German.DL") and in brackets ("[1080p]")
+    leave the title, and a year past next year isn't taken for one.
+  - "S01E05.S01E06" and "1x05-06" hold two episodes, and a code decides an episode's kind
+    whatever its title says ("- Special").
+  - Folders named Shorts, Other or Scenes are extras only inside a title's own folder, and
+    `{tmdb-12345}` tags are left out of titles.
+- Finding titles:
+  - A show's newest episode no longer lands in season 1 while Maku's episode list hasn't caught
+    up: Maku asks TMDB again first, and an episode TMDB doesn't list yet waits for you, so Tidy
+    up never sets the real season 1 episode aside.
+  - A series and its remake are told apart by the year in their names, and the year is searched
+    with, so a film many others share a name with is found, in a scan and when you type
+    "Northern Lights 1962" on "Which title is this?".
+  - A film named without its year waits for you when another film of that name fits as well,
+    the one closer in length first.
+  - A disc's film is scored as a film when you search for it.
+  - Files are no longer one episode out when TMDB gives a show's first episode no date.
+  - A film that joins a collection after Maku first looked turns up by itself.
+- Converting:
+  - Old bit-rate tags in a file no longer set its result's ceiling or its estimate: Maku's
+    results carry none, and a stale one is ignored.
+  - A picture of an odd width or height (1920x803) is made one line smaller, so its result
+    passes the check.
+  - Sound and subtitles an MKV can't hold no longer stop a conversion: PCM becomes FLAC (32-bit
+    stays PCM), float PCM stays as it is, teletext and closed captions are left out, saying so.
+  - A queued file that's at your standard by its turn is passed over, not failed.
+- The look:
+  - Maku starts in your scheme from its first frame, with no flash of Velvet, and a reload keeps
+    the scheme you chose last.
+  - The notes in the window are readable in every scheme's light (Graphite's and Lagoon's were
+    faint), and the queue's pictures and the empty shelf follow your scheme.
+  - A light-or-dark or colours choice that couldn't be kept goes back to the one that is.
 
 ## 0.1.0 - 2026-10-27
 

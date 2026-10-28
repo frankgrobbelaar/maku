@@ -16,8 +16,8 @@ from maku.core.estimate import (
     sound_rate,
     total,
 )
-from maku.core.media import Audio, MediaInfo, Video
-from maku.core.standard import Decision, Method
+from maku.core.media import Audio, MediaInfo, Video, media_from_ffprobe
+from maku.core.standard import FULL_HD, UHD, Decision, Method, decide
 
 FILM = Fraction(24000, 1001)
 HOUR = 3600.0
@@ -116,6 +116,73 @@ def test_4k_brought_down_comes_to_1080ps_rate():
 
     old_picture = 60_000_000 * HOUR / 8
     assert down == round(30_000_000_000 - old_picture + PICTURE_RATES["1080p"] * HOUR / 8)
+
+
+def test_1440p_comes_to_a_rate_between_1080ps_and_4ks():
+    source = video(2560, 1440, size=30_000_000_000, picture=60_000_000)
+
+    made = result_bytes(source, reencoded(source))
+
+    assert PICTURE_RATES["1080p"] < PICTURE_RATES["1440p"] < PICTURE_RATES["4K"]
+    assert made == round(30_000_000_000 - 60_000_000 * HOUR / 8 + PICTURE_RATES["1440p"] * HOUR / 8)
+
+
+def ffprobes(
+    width: int, height: int, *, seconds: float, size: int, picture: int, sound: tuple[str, int]
+) -> MediaInfo:
+    """ffprobe's report on an MKV whose picture's statistics (BPS) say `picture` bits a second
+    and whose one sound track's say its own."""
+    codec, rate = sound
+    return media_from_ffprobe(
+        {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264" if width <= 1920 else "hevc",
+                    "width": width,
+                    "height": height,
+                    "pix_fmt": "yuv420p" if width <= 1920 else "yuv420p10le",
+                    "avg_frame_rate": "24000/1001",
+                    "field_order": "progressive",
+                    "display_aspect_ratio": "16:9",
+                    "tags": {"BPS-eng": str(picture)},
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": codec,
+                    "channels": 6,
+                    "tags": {"BPS-eng": str(rate)},
+                },
+            ],
+            "format": {"format_name": "matroska,webm", "duration": str(seconds), "size": str(size)},
+        }
+    )
+
+
+def test_a_picture_tagged_with_more_than_its_file_holds_is_reckoned_by_the_file():
+    # A 45-minute episode at 3 Mb/s and Dolby Digital, re-encoded from a Blu-ray whose 25 Mb/s
+    # picture its tag still names.
+    size = round((3_000_000 + 640_000) * 2700 / 8)  # 1.23 GB
+    episode = ffprobes(
+        1920, 1080, seconds=2700, size=size, picture=25_000_000, sound=("ac3", 640_000)
+    )
+
+    reckoned = estimate(episode, decide(episode, UHD))
+
+    assert picture_rate(episode) == pytest.approx(3_000_000)
+    assert reckoned.output_bytes == size  # never more than the original: not 2.36 GB
+
+
+def test_a_film_maku_made_at_4k_brought_down_counts_its_sound():
+    # Two hours: an 18 Mb/s picture and 4.5 Mb/s TrueHD, its picture's tag still the Blu-ray's 60.
+    size = round((18_000_000 + 4_500_000) * 7200 / 8)
+    film = ffprobes(
+        3840, 2160, seconds=7200, size=size, picture=60_000_000, sound=("truehd", 4_500_000)
+    )
+
+    reckoned = estimate(film, decide(film, FULL_HD))
+
+    assert reckoned.output_bytes == pytest.approx((PICTURE_RATES["1080p"] + 4_500_000) * 7200 / 8)
 
 
 def test_a_picture_that_doesnt_say_its_rate_is_the_file_less_its_sound():

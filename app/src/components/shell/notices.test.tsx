@@ -62,6 +62,36 @@ describe("Notices", () => {
     expect(await screen.findByText("A title")).toBeInTheDocument();
   });
 
+  it("stays dark on a light page, as the featured panel does, its shadow the page's", async () => {
+    shell.invoke.mockResolvedValue(READY);
+    fakeEngine({});
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <EngineProvider>
+          <MemoryRouter>
+            <Notices />
+          </MemoryRouter>
+        </EngineProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(shell.handlers.has("notice")).toBe(true));
+
+    act(() =>
+      shell.handlers.get("notice")?.({
+        payload: { title: "Glass Orchard is done", body: "1 episode", link: "/titles/2" },
+      }),
+    );
+
+    // The accent and its focus ring on the scheme's deep colour are dark mode's in every scheme
+    // (Graphite light's black button would vanish on it), while the shadow under the note stays
+    // the page's own: soft on a light page.
+    const note = await screen.findByRole("status");
+    const panel = screen.getByRole("button", { name: "View" }).closest(".scheme-dark");
+    expect(panel).toHaveClass("bg-featured");
+    expect(note).toContainElement(panel as HTMLElement);
+    expect(note).not.toHaveClass("scheme-dark");
+  });
+
   it("stays while it's pointed at or focused, and goes when dismissed", async () => {
     shell.invoke.mockResolvedValue(READY);
     fakeEngine({});

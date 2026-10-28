@@ -11,7 +11,7 @@ import statistics
 import unicodedata
 from collections import Counter
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
 from pathlib import PurePath
 
@@ -20,6 +20,7 @@ from maku.core.names import Kind, ParsedName, film_part
 
 SURE = 75  # a guess at least this confident is taken without asking
 WORTH_SHOWING = 15  # guesses below this aren't shown on the review screen
+CLEAR = 10  # how far ahead of a namesake a guess must be to be taken without asking
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,8 @@ class Group:
     # A disc's own files (VIDEO_TS): its folder names a film, offered to the owner, never taken
     # surely, as which part of a disc a file is no name says.
     disc: bool = False
+    # TMDB's id for the show or film, when the files' names give it: "{tmdb-4101}".
+    tmdb_id: int | None = None
 
     @property
     def longest_episode(self) -> int | None:
@@ -67,39 +70,67 @@ class Guess:
     entry: Entry
     confidence: int  # 0 to 100
     reasons: tuple[str, ...]  # "Title matches", "2019 fits", …
+    alike: float = 0.0  # how alike the entry's names and the files' are, 0 to 1
+
+
+@dataclass(frozen=True)
+class _Key:
+    """What files have in common to be looked up together."""
+
+    name: str  # normalized
+    movie: bool
+    year: int | None
+    disc: bool
+    tmdb_id: int | None
 
 
 def group_files(files: Iterable[FileFacts]) -> list[Group]:
     """Files that look like the same series or film, by their title (from the name or the
-    folder) and by whether they're films; a film's year too, as a remake takes its name again.
-    Files without any title can't be looked up, so they're left out."""
-    grouped: dict[tuple[str, bool, int | None, bool], list[FileFacts]] = {}
-    names: dict[tuple[str, bool, int | None, bool], Counter[str]] = {}
+    folder), by whether they're films, and by the year their names give, as a remake takes its
+    name again; and by TMDB's id when their names give it ("{tmdb-4101}"). A series' files
+    without a year go with the one year its other files give; beside two (a series and its
+    remake), they're looked up alone. Files without any title can't be looked up, so they're
+    left out."""
+    grouped: dict[_Key, list[FileFacts]] = {}
+    names: dict[_Key, Counter[str]] = {}
     for facts in files:
-        title = facts.parsed.best_title
-        if not title or facts.parsed.kind is Kind.EXTRA:
+        parsed = facts.parsed
+        title = parsed.best_title
+        if not title or parsed.kind is Kind.EXTRA:
             continue
-        disc = facts.parsed.kind is Kind.DVD
-        movie = disc or facts.parsed.kind is Kind.MOVIE
-        key = (normalize(title), movie, facts.parsed.year if movie else None, disc)
+        disc = parsed.kind is Kind.DVD
+        movie = disc or parsed.kind is Kind.MOVIE
+        key = _Key(normalize(title), movie, parsed.year, disc, parsed.tmdb_id)
         grouped.setdefault(key, []).append(facts)
         names.setdefault(key, Counter())[title] += 1
+    for key in [key for key in grouped if key.year is None and not key.movie]:
+        dated = [o for o in grouped if o.year is not None and replace(o, year=None) == key]
+        if len(dated) == 1:  # "The.Harbour.Line.S02E03" beside "The Harbour Line (2019)"
+            grouped[dated[0]] += grouped.pop(key)
+            names[dated[0]] += names.pop(key)
     groups: list[Group] = []
     for key, members in grouped.items():
-        years = Counter(f.parsed.year for f in members if f.parsed.year)
         series = Counter(f.parsed.series for f in members if f.parsed.series)
-        title = names[key].most_common(1)[0][0]  # the spelling most files use
         groups.append(
             Group(
-                query=title,
-                year=years.most_common(1)[0][0] if years else None,
-                movie=key[1],
+                query=names[key].most_common(1)[0][0],  # the spelling most files use
+                year=key.year,
+                movie=key.movie,
                 files=tuple(members),
                 series=series.most_common(1)[0][0] if series else None,
-                disc=key[3],
+                disc=key.disc,
+                tmdb_id=key.tmdb_id,
             )
         )
-    return sorted(groups, key=lambda group: (group.query.casefold(), group.movie, group.year or 0))
+    return sorted(
+        groups,
+        key=lambda group: (
+            group.query.casefold(),
+            group.movie,
+            group.year or 0,
+            group.tmdb_id or 0,
+        ),
+    )
 
 
 def names(group: Group) -> list[str]:
@@ -174,6 +205,42 @@ def guesses(group: Group, entries: Sequence[Entry]) -> list[Guess]:
     return [guess for guess in found if guess.confidence >= WORTH_SHOWING]
 
 
+def sure_of(ranked: Sequence[Guess]) -> Guess | None:
+    """The guess Maku takes without asking, if any: the best (`ranked` comes most confident
+    first) when it's SURE or more and clearly ahead of every namesake, a guess whose names fit as
+    well (a film of the same name from another year, a series and its remake). A namesake that's
+    sure too, or less than CLEAR behind, could as well be the one: the owner says which."""
+    if not ranked or ranked[0].confidence < SURE:
+        return None
+    best, *others = ranked
+    for other in others:
+        namesake = abs(other.alike - best.alike) <= _SAME_NAME
+        if namesake and (other.confidence >= SURE or best.confidence - other.confidence < CLEAR):
+            return None
+    return best
+
+
+_SAME_NAME = 0.02  # names this alike are the same name, as far as telling titles apart goes
+
+
+def tagged(entry: Entry) -> Guess:
+    """The guess for the show or film whose TMDB id the files' names give ("{tmdb-7206}"): sure,
+    as the id says which it is, however many others share its name."""
+    return Guess(entry, 100, ("Its TMDB id is in its name",), 1.0)
+
+
+def with_year(text: str) -> tuple[str, int | None]:
+    """A name typed with a year after it, as the name and the year: "Starfall 1962" and
+    "Starfall (1962)" are ("Starfall", 1962). A name without one, or that is a year ("1962"),
+    comes back as it is."""
+    if found := _TYPED_YEAR.match(text.strip()):
+        return found["name"], int(found["year"])
+    return text.strip(), None
+
+
+_TYPED_YEAR = re.compile(r"^(?P<name>.*\S)(?:\s*[(\[]|\s+|\.)(?P<year>(?:19|20)\d{2})[)\]]?$")
+
+
 def merged(*rankings: Sequence[Guess]) -> list[Guess]:
     """Guesses from several lookups as one ranking, most confident first: each entry once, at its
     surest."""
@@ -220,16 +287,31 @@ def _guess(group: Group, entry: Entry, rank: int) -> Guess:
 
     minutes = group.minutes
     if minutes and entry.minutes and not its_specials:
-        if abs(minutes - entry.minutes) <= max(3, entry.minutes * 0.25):
-            score += 5
-            reasons.append(f"{round(minutes)} min fits")
-        else:
-            score -= 15
-            reasons.append(f"{round(minutes)} min, not {entry.minutes}")
+        score += _length_fit(minutes, entry.minutes, film=group.movie, reasons=reasons)
 
     if rank == 0:
         score += 5  # TMDB ranked it first
-    return Guess(entry, max(0, min(100, round(score))), tuple(reasons))
+    return Guess(entry, max(0, min(100, round(score))), tuple(reasons), name)
+
+
+def _length_fit(minutes: float, expected: int, *, film: bool, reasons: list[str]) -> float:
+    """How well a length fits the entry's. A film's is its own, so the closer the better: a
+    98-minute file fits a 98-minute film better than a 112-minute one of the same name. An
+    episode's varies around the show's, and near enough is all it says."""
+    off = abs(minutes - expected)
+    fits, not_it = f"{round(minutes)} min fits", f"{round(minutes)} min, not {expected}"
+    if not film:
+        near = off <= max(3, expected * 0.25)
+        reasons.append(fits if near else not_it)
+        return 5 if near else -15
+    if off <= max(2, expected * 0.02):  # as long as it, give or take its logos
+        reasons.append(fits)
+        return 10
+    if off <= max(3, expected * 0.1):  # a disc that runs a little faster, a cut of a minute
+        reasons.append(fits)
+        return 5
+    reasons.append(not_it)
+    return 0 if off <= expected * 0.25 else -15
 
 
 def _kind_fit(group: Group, entry: Entry, reasons: list[str]) -> float:

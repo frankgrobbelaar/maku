@@ -125,6 +125,12 @@ class Stopped(Exception):  # noqa: N818 - not an error: the owner paused or skip
     """Converting stopped because the owner asked; nothing changed."""
 
 
+class NothingToConvert(Exception):  # noqa: N818 - not an error: the file needs nothing now
+    """The file is at the standard by its turn (the standard changed since it joined the queue,
+    say), so nothing was made and nothing changed. The message says so; the queue passes it
+    over rather than calling it failed."""
+
+
 class Starter(Protocol):
     """Starts a program, as subprocess.Popen does."""
 
@@ -206,7 +212,8 @@ def convert(
     it moves. `stop` stops it while the file is being made; once it's made, it's checked and put
     in place unless `discard` says to throw it away (the owner skipped it, say). `encoder` is
     the one this PC has (maku/core/convert.py's ENCODERS), None when it has none. Raises
-    ConvertError when it can't (the original stays as it was), or Stopped when asked."""
+    ConvertError when it can't (the original stays as it was), Stopped when asked, and
+    NothingToConvert when the file is at the standard by now: it's decided again as it starts."""
     if encoder is None:
         raise ConvertError(NO_ENCODER)
     row = _job(conn, job_id)
@@ -215,7 +222,7 @@ def convert(
     media = media_from_ffprobe(json.loads(row["probe"]))
     decision = decide(media, standard)
     if decision.method not in CONVERTED or media.video is None:
-        raise ConvertError("It's at your standard already, so there's nothing to convert.")
+        raise NothingToConvert("It's at your standard now, so there's nothing to convert.")
     total = _frames(media)
     report(Progress("looking", 0, total))
     if media.video.interlaced is None and _looks_interlaced(programs, source, media):

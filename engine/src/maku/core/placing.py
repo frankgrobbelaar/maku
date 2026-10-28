@@ -1,15 +1,20 @@
-"""Where a file sits in a TMDB show: which season and episode, numbered the way Plex shows them.
+"""Where a file sits in a TMDB show: which season and episode, as media server apps number them.
 
-Releases number episodes in three ways, and all of them land in TMDB's seasons:
+Releases name episodes in three ways, and all of them land in TMDB's seasons:
 
 - by season: "S02E05", or "05" in a "Season 02" folder;
 - straight through: "The Harbour Line - 020" is the 20th episode, wherever TMDB's seasons break,
   even in a season's folder ("Season 02/Glass Orchard - 13", after season 1's 12);
-- from the start of a part: an entry that is only part of a show, such as a season's second part
-  numbered from 1 again ("The Harbour Line S2 Part 2 - 03"), places its files by the day it began.
+- by the day it aired, as a daily show's are: "The.Harbour.Line.2021.04.12" is the episode TMDB
+  dates that day.
 
-Specials go to season 0 by the date they first aired, or by their own name ("Quiet Hours - Special
-05 - The Night Train"). Anything Maku can't place surely is left for the owner to review.
+A name that gives its season is numbered within it: an episode its season doesn't list yet
+("S03E05" before TMDB has it) isn't counted from the show's first instead, and neither is a file
+in a season's folder counted back into an earlier season.
+
+Specials go to season 0 by their number there, by their own name ("Quiet Hours - Special 05 - The
+Night Train"), or by the day their own entry first aired. Anything Maku can't place surely is left
+for the owner to review.
 """
 
 import re
@@ -31,7 +36,7 @@ _SAME_NAME = 0.85  # how alike a file's own name and a special's must be, at the
 class How(StrEnum):
     NUMBERED = "numbered"  # by its season and episode numbers
     STRAIGHT = "straight"  # its number counted through every season
-    BY_DATE = "by date"  # from the day its entry began: part of a show, or a special
+    BY_DATE = "by date"  # by the day it aired: a daily show's, or a special by its own entry's
     BY_NAME = "by name"  # a special by its own name, among the show's
 
 
@@ -46,27 +51,18 @@ class Placement:
 def place(parsed: ParsedName, show: Show, entry: Entry | None = None) -> Placement | None:
     """The file's season and episode in `show`, or None when Maku can't tell surely.
 
-    `entry` is the entry the file matched. One that is only part of the show (a season's later
-    part, or a special of its own) places it by the day it began.
+    `entry` is the entry the file matched. A special's own entry (a film, say) places it by the
+    day it first aired; a show's says nothing about which of its episodes a file is.
     """
     number = parsed.episode
     if parsed.kind is Kind.SPECIAL or parsed.season == 0 or parsed.folder_season == 0:
         return _special(parsed, show, entry)
+    if parsed.kind is Kind.EPISODE and number is None and parsed.aired is not None:
+        return _aired_on(parsed.aired, show)  # a daily show's: "The.Harbour.Line.2021.04.12"
     if number is None or parsed.kind is not Kind.EPISODE:
         return None
     numbered = show_episodes(show)
     season = parsed.season if parsed.season is not None else parsed.folder_season
-
-    start = _start_of(entry, numbered)
-    if (
-        start is not None
-        and start > 0
-        and entry
-        and entry.episodes
-        and 1 <= number <= entry.episodes
-    ):
-        # A later part with its own numbering: count on from its first episode.
-        return _from(numbered, start + number - 1, parsed, How.BY_DATE)
     if season is not None:
         in_season = [e for e in numbered if e.season == season]
         if 1 <= number <= len(in_season):
@@ -74,8 +70,14 @@ def place(parsed: ParsedName, show: Show, entry: Entry | None = None) -> Placeme
             if last is not None and not number < last <= len(in_season):
                 last = None
             return Placement(season, number, last, How.NUMBERED)
-    # Counted straight through, from the show's first episode.
-    return _from(numbered, number - 1, parsed, How.STRAIGHT)
+        if parsed.season is not None:
+            return None  # "S03E05" before TMDB lists it: not the show's fifth, season 1's
+    # Counted straight through, from the show's first episode: a file in a season's folder never
+    # back into an earlier season, though a release's one folder of every season runs on past it.
+    found = _from(numbered, number - 1, parsed, How.STRAIGHT)
+    if found is not None and season is not None and found.season < season:
+        return None
+    return found
 
 
 def numbered_through(files: Iterable[FileFacts], show: Show) -> set[int]:
@@ -136,14 +138,13 @@ def _from(numbered: list[Episode], index: int, parsed: ParsedName, how: How) -> 
     return Placement(first.season, first.number, last, how)
 
 
-def _start_of(entry: Entry | None, numbered: list[Episode]) -> int | None:
-    """Where an entry begins among the show's episodes, by its first air date."""
-    if entry is None or entry.start is None or entry.kind not in (TitleKind.SERIES, None):
+def _aired_on(day: date, show: Show) -> Placement | None:
+    """The one episode of the show's seasons that aired on this day, by TMDB's date: a daily
+    show's names give no number. None when none did, or two did (a double bill)."""
+    found = [episode for episode in show_episodes(show) if episode.aired == day]
+    if len(found) != 1:
         return None
-    for index, episode in enumerate(numbered):
-        if episode.aired is not None and same_day(episode.aired, entry.start):
-            return index
-    return None
+    return Placement(found[0].season, found[0].number, None, How.BY_DATE)
 
 
 def lists_special(show: Show, day: date) -> bool:

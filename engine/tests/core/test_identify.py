@@ -16,8 +16,10 @@ from maku.core.identify import (
     searches,
     similarity,
     spelled_out,
+    sure_of,
+    with_year,
 )
-from maku.core.names import parse_name
+from maku.core.names import Kind, ParsedName, parse_name
 from tests.services import ASCENT, HARBOUR, LANTERN, ORCHARD, QUIET, STARFALL, STARFALL_II
 from tests.tmdb_data import movie_details, tv_details
 
@@ -83,6 +85,70 @@ def test_films_of_one_name_and_another_year_are_looked_up_apart():
     assert [(g.query, g.year, [f.id for f in g.files]) for g in found] == [
         ("Starfall", 2008, [1, 3]),
         ("Starfall", 2027, [2]),
+    ]
+
+
+def test_a_series_and_its_remake_are_looked_up_apart_by_their_years():
+    found = group_files(
+        [
+            facts(
+                r"D:\Videos\Downloads\The.Harbour.Line.1985.S01E01.DVDRip.x264-GRP.mkv", number=1
+            ),
+            facts(
+                r"D:\Videos\Downloads\The.Harbour.Line.2019.S01E01.1080p.WEB-DL-GRP.mkv", number=2
+            ),
+            facts(r"D:\Videos\TV\The Harbour Line (2019)\Season 01\02.mkv", number=3),
+        ]
+    )
+
+    assert [(g.query, g.year, [f.id for f in g.files]) for g in found] == [
+        ("The Harbour Line", 1985, [1]),
+        ("The Harbour Line", 2019, [2, 3]),
+    ]
+
+
+def test_a_series_files_without_a_year_go_with_the_one_year_the_others_give():
+    found = group_files(
+        [
+            facts(r"D:\Videos\TV\The Harbour Line (2019)\Season 01\01.mkv", number=1),
+            facts(r"D:\Videos\Downloads\The.Harbour.Line.S02E03.1080p.WEB-DL-GRP.mkv", number=2),
+        ]
+    )
+
+    assert [(g.query, g.year, [f.id for f in g.files]) for g in found] == [
+        ("The Harbour Line", 2019, [1, 2])
+    ]
+
+
+def test_a_series_files_without_a_year_beside_two_years_of_it_are_looked_up_alone():
+    found = group_files(
+        [
+            facts(
+                r"D:\Videos\Downloads\The.Harbour.Line.1985.S01E01.DVDRip.x264-GRP.mkv", number=1
+            ),
+            facts(
+                r"D:\Videos\Downloads\The.Harbour.Line.2019.S01E01.1080p.WEB-DL-GRP.mkv", number=2
+            ),
+            facts(r"D:\Videos\Downloads\The.Harbour.Line.S01E02.HDTV.x264-GRP.mkv", number=3),
+        ]
+    )
+
+    assert [(g.year, [f.id for f in g.files]) for g in found] == [
+        (None, [3]),
+        (1985, [1]),
+        (2019, [2]),
+    ]
+
+
+def test_files_whose_names_give_tmdbs_id_are_looked_up_apart_by_it():
+    path = PureWindowsPath(r"D:\Videos\Movies\Northern Lights {tmdb-7206}.mkv")
+    named = FileFacts(1, path, ParsedName(Kind.MOVIE, title="Northern Lights", tmdb_id=7206), 98)
+
+    found = group_files([named, facts(r"D:\Videos\Movies\Northern Lights.mkv", 98, number=2)])
+
+    assert [(g.query, g.tmdb_id, [f.id for f in g.files]) for g in found] == [
+        ("Northern Lights", None, [2]),
+        ("Northern Lights", 7206, [1]),
     ]
 
 
@@ -165,6 +231,47 @@ def test_a_film_named_as_its_collections_first_is_the_first():
 
     assert (found[0].entry.id, found[0].confidence >= SURE) == (-7101, True)
     assert all(guess.confidence < SURE for guess in found[1:])
+
+
+# Two films called Northern Lights: TMDB ranks the 2024 one first.
+REMAKE = movie_details(7203, "Northern Lights", date(2024, 3, 1), 112)
+OLDER = movie_details(7206, "Northern Lights", date(1987, 3, 6), 98)
+
+
+def test_a_length_closer_to_a_films_own_fits_it_better():
+    [group] = group_files([facts(r"D:\Videos\Movies\Northern Lights.mkv", minutes=98)])
+
+    found = guesses(group, [film(REMAKE), film(OLDER)])
+
+    assert [guess.entry.id for guess in found] == [-7206, -7203]
+    assert "98 min fits" in found[0].reasons
+    assert "98 min, not 112" in found[1].reasons
+
+
+def test_a_film_named_without_its_year_isnt_sure_while_a_namesake_fits_nearly_as_well():
+    [group] = group_files([facts(r"D:\Videos\Movies\Northern Lights.mkv", minutes=98)])
+
+    found = guesses(group, [film(REMAKE), film(OLDER)])
+
+    assert found[0].confidence >= SURE
+    assert sure_of(found) is None  # either could be the one: the owner says which
+
+
+def test_a_namesake_far_behind_or_named_otherwise_doesnt_stand_in_the_way():
+    [dated] = group_files([facts(r"D:\Videos\Movies\Northern Lights (1987).mkv", minutes=98)])
+    [alone] = group_files([facts(r"D:\Videos\Movies\Starfall.mkv", minutes=118)])
+
+    best = sure_of(guesses(dated, [film(REMAKE), film(OLDER)]))
+    first = sure_of(guesses(alone, [film(STARFALL), film(STARFALL_II), film(ASCENT)]))
+
+    assert (best.entry.id if best else None, first.entry.id if first else None) == (-7206, -7101)
+
+
+def test_a_year_typed_after_a_name_is_taken_from_it():
+    assert with_year("Northern Lights 1962") == ("Northern Lights", 1962)
+    assert with_year("Northern Lights (1962)") == ("Northern Lights", 1962)
+    assert with_year("Starfall II") == ("Starfall II", None)
+    assert with_year("1962") == ("1962", None)  # a name that's a year is a name
 
 
 def test_a_film_in_two_parts_is_as_long_as_both_together():

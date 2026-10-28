@@ -4,6 +4,7 @@ The report is ffprobe's JSON (`-show_format -show_streams -show_chapters`); runn
 someone else's job, so everything here is a plain function of that data.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -11,6 +12,8 @@ from maku.core import fields
 from maku.core.fields import Json
 
 MAKU_TAG = "MAKU"  # the tag Maku writes into every file it converts
+# What a file ffmpeg wrote says made it ("Lavf61.7.100"): its statistics (BPS) are copies.
+_FFMPEG = "lavf"
 # The transfers that make a picture HDR: PQ (HDR10, and Dolby Vision's HDR10 base) and HLG.
 HDR_TRANSFERS = {"smpte2084": "HDR10", "arib-std-b67": "HLG"}
 
@@ -74,12 +77,14 @@ def media_from_ffprobe(report: Json) -> MediaInfo:
     streams = fields.mappings(report, "streams")
     format_ = fields.mapping(report, "format")
     pictures = [s for s in streams if fields.text(s, "codec_type") == "video" and not _is_cover(s)]
+    duration, size = fields.decimal(format_, "duration"), fields.whole(format_, "size")
+    rate = _bit_rates(format_, duration, size)
     return MediaInfo(
         container=_container(fields.text(format_, "format_name")),
-        duration=fields.decimal(format_, "duration"),
-        size=fields.whole(format_, "size"),
-        video=_video(pictures[0]) if pictures else None,
-        audio=tuple(_audio(s) for s in streams if fields.text(s, "codec_type") == "audio"),
+        duration=duration,
+        size=size,
+        video=_video(pictures[0], rate) if pictures else None,
+        audio=tuple(_audio(s, rate) for s in streams if fields.text(s, "codec_type") == "audio"),
         subtitles=tuple(
             _subtitle(s) for s in streams if fields.text(s, "codec_type") == "subtitle"
         ),
@@ -96,7 +101,10 @@ _DOLBY_VISION_TAGS = frozenset({"dvhe", "dvh1", "dvav", "dva1", "dav1"})  # in M
 _DOLBY_VISION_RECORD = "DOVI configuration record"
 
 
-def _video(stream: Json) -> Video:
+type _Rate = Callable[[Json], int | None]  # a stream's bits a second, as its file lets them be
+
+
+def _video(stream: Json, rate: _Rate) -> Video:
     width = fields.whole(stream, "width") or 0
     height = fields.whole(stream, "height") or 0
     record = _dolby_vision(stream)
@@ -115,11 +123,11 @@ def _video(stream: Json) -> Video:
         dolby_vision=record is not None
         or (fields.text(stream, "codec_tag_string") or "") in _DOLBY_VISION_TAGS,
         needs_dolby_vision=record is not None and _without_base(record),
-        bit_rate=_bit_rate(stream),
+        bit_rate=rate(stream),
     )
 
 
-def _audio(stream: Json) -> Audio:
+def _audio(stream: Json, rate: _Rate) -> Audio:
     codec = fields.text(stream, "codec_name") or "unknown"
     lossless = codec in _LOSSLESS_AUDIO or codec.startswith("pcm_")
     if codec == "dts" and "MA" in (fields.text(stream, "profile") or ""):
@@ -129,7 +137,7 @@ def _audio(stream: Json) -> Audio:
         channels=fields.whole(stream, "channels") or 0,
         language=language_of(stream),
         lossless=lossless,
-        bit_rate=_bit_rate(stream),
+        bit_rate=rate(stream),
     )
 
 
@@ -155,16 +163,28 @@ def _without_base(record: Json) -> bool:
     return fields.whole(record, "dv_profile") == 5
 
 
-def _bit_rate(stream: Json) -> int | None:
-    """A stream's bits a second: ffprobe's, or the statistics MKVToolNix writes ("BPS")."""
-    found = fields.whole(stream, "bit_rate")
-    if found is None:
-        for name in ("BPS", "BPS-eng"):
-            said = tag(stream, name)
-            if said is not None and said.isdigit():
-                found = int(said)
-                break
-    return found if found is not None and found > 0 else None
+def _bit_rates(format_: Json, duration: float | None, size: int | None) -> _Rate:
+    """How a file's streams' bits a second are read: ffprobe's own, or the statistics MKVToolNix
+    and MakeMKV count as they write a file ("BPS"). ffmpeg never counts them, but copies them
+    into what it makes, where they're the original's (a picture made 3 Mb/s still saying the 25
+    of its Blu-ray's), so in a file ffmpeg wrote they're no one's. Nor is a rate that would make a
+    stream bigger than its whole file."""
+    most = size * 8 / duration if size and duration else None
+    counted = not (tag(format_, "encoder") or "").casefold().startswith(_FFMPEG)
+
+    def rate(stream: Json) -> int | None:
+        found = fields.whole(stream, "bit_rate")
+        if found is None and counted:
+            for name in ("BPS", "BPS-eng"):
+                said = tag(stream, name)
+                if said is not None and said.isdigit():
+                    found = int(said)
+                    break
+        if found is None or found <= 0 or (most is not None and found > most):
+            return None
+        return found
+
+    return rate
 
 
 def _subtitle(stream: Json) -> Subtitle:

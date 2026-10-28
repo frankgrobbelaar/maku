@@ -36,8 +36,9 @@ owner chose in Settings > General: no theme of its own to follow Windows, or alw
 dark. WebView2 takes the window's theme as the page's `prefers-color-scheme`, so the page is light
 or dark from its first frame, and its colours change with it (`light-dark()` in `tokens.css`). The
 scheme (Velvet, Lagoon, Dusk or Graphite) reaches the page before anything else runs, as an
-initialization script setting `window.__MAKU_SCHEME__`, which `main.tsx` puts on `<html>` as
-`data-scheme`. The window's own colour under the page, seen before it draws, is the scheme's
+initialization script: `window.__MAKU_SCHEME__ = "…";` and `app/src/lib/scheme-script.js`, which
+`look.rs` embeds, put it on `<html>` as `data-scheme` before the first frame (waiting for `<html>`
+when it runs first), the session's newest choice winning after a reload. The window's own colour under the page, seen before it draws, is the scheme's
 window colour in the theme (`Scheme::windows`), following a change of theme (`ThemeChanged`) or of
 scheme. The UI reads and sets them with the `look`, `set_look`, `scheme` and `set_scheme` commands
 (`app/src/lib/look.ts`).

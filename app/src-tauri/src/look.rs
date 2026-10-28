@@ -93,10 +93,40 @@ fn window_colour(scheme: Scheme, theme: Theme) -> Color {
     Color(red, green, blue, 0xff)
 }
 
-/// What the page reads before anything else runs: the scheme, to take before its first frame
-/// (app/src/main.tsx).
+/// The page's own script for its scheme (app/src/lib/scheme-script.js, run by its tests): it puts
+/// the scheme on <html> before the first frame, waiting for <html> when it runs before there is
+/// one, or puts on the newer one a reload finds in the session.
+const PAGE_SCRIPT: &str = include_str!("../../src/lib/scheme-script.js");
+
+/// What the page runs before anything else: the scheme chosen, then the page's script, which
+/// wears it before the first frame.
 fn scheme_script(scheme: Scheme) -> String {
-    format!("window.__MAKU_SCHEME__ = \"{}\";", scheme.word())
+    format!(
+        "window.__MAKU_SCHEME__ = \"{}\";\n{PAGE_SCRIPT}",
+        scheme.word()
+    )
+}
+
+/// Shows a choice on the window, then keeps it for every start, so the two never disagree: one
+/// the window doesn't take isn't kept, and one that can't be kept comes off the window again.
+fn show_then_keep<T: Copy>(
+    chosen: T,
+    kept: T,
+    mut show: impl FnMut(T) -> Result<(), String>,
+    keep: impl FnOnce(T) -> Result<(), String>,
+) -> Result<T, String> {
+    show(chosen)?;
+    if let Err(error) = keep(chosen) {
+        let _ = show(kept);
+        return Err(error);
+    }
+    Ok(chosen)
+}
+
+/// Keeps a choice for every start.
+fn keep(app: &AppHandle, key: &str, value: impl Serialize) -> Result<(), String> {
+    let value = serde_json::to_value(value).map_err(|error| error.to_string())?;
+    choices::save(app, key, value)
 }
 
 /// Makes Maku's window, hidden, in the look and scheme chosen, so the page is light or dark and
@@ -135,14 +165,18 @@ pub fn look(app: AppHandle) -> Result<Look, String> {
 /// Chooses the look: from now, and at every start.
 #[tauri::command]
 pub fn set_look(app: AppHandle, look: Look) -> Result<Look, String> {
-    let value = serde_json::to_value(look).map_err(|error| error.to_string())?;
-    choices::save(&app, LOOK, value)?;
-    if let Some(window) = app.get_webview_window("main") {
-        window
-            .set_theme(look.theme())
-            .map_err(|error| format!("Windows didn't take that ({error})."))?;
-    }
-    Ok(look)
+    let window = app.get_webview_window("main");
+    show_then_keep(
+        look,
+        saved(&app),
+        |look| match &window {
+            Some(window) => window
+                .set_theme(look.theme())
+                .map_err(|error| format!("Windows didn't take that ({error}).")),
+            None => Ok(()),
+        },
+        |look| keep(&app, LOOK, look),
+    )
 }
 
 /// The scheme chosen.
@@ -151,24 +185,32 @@ pub fn scheme(app: AppHandle) -> Result<Scheme, String> {
     Ok(saved_scheme(&app))
 }
 
-/// Chooses the scheme: from now (the page puts it on itself), and at every start.
+/// Chooses the scheme: from now (the page puts it on itself, and the window's colour under the
+/// page follows), and at every start.
 #[tauri::command]
 pub fn set_scheme(app: AppHandle, scheme: Scheme) -> Result<Scheme, String> {
-    let value = serde_json::to_value(scheme).map_err(|error| error.to_string())?;
-    choices::save(&app, SCHEME, value)?;
-    if let Some(window) = app.get_webview_window("main") {
-        let theme = window.theme().map_err(|error| error.to_string())?;
-        window
-            .set_background_color(Some(window_colour(scheme, theme)))
-            .map_err(|error| error.to_string())?;
-    }
-    Ok(scheme)
+    let window = app.get_webview_window("main");
+    show_then_keep(
+        scheme,
+        saved_scheme(&app),
+        |scheme| match &window {
+            Some(window) => {
+                let theme = window.theme().map_err(|error| error.to_string())?;
+                window
+                    .set_background_color(Some(window_colour(scheme, theme)))
+                    .map_err(|error| error.to_string())
+            }
+            None => Ok(()),
+        },
+        |scheme| keep(&app, SCHEME, scheme),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::cell::RefCell;
 
     #[test]
     fn the_look_reads_as_the_page_writes_it() {
@@ -225,10 +267,69 @@ mod tests {
     }
 
     #[test]
-    fn the_page_is_told_its_scheme_and_nothing_else() {
-        assert_eq!(
-            scheme_script(Scheme::Dusk),
-            "window.__MAKU_SCHEME__ = \"dusk\";"
+    fn the_page_is_told_its_scheme_and_wears_it_before_its_first_frame() {
+        let script = scheme_script(Scheme::Dusk);
+        assert!(script.starts_with("window.__MAKU_SCHEME__ = \"dusk\";\n"));
+        // Then the page's own script puts it on <html>, or the newer one a reload finds in the
+        // session (app/src/lib/scheme-script.js, whose tests run it).
+        assert!(script.ends_with(PAGE_SCRIPT));
+        assert!(PAGE_SCRIPT.contains("document.documentElement"));
+        assert!(PAGE_SCRIPT.contains("sessionStorage"));
+    }
+
+    /// What `show_then_keep` did, in order.
+    fn steps() -> RefCell<Vec<String>> {
+        RefCell::new(Vec::new())
+    }
+
+    #[test]
+    fn a_choice_is_shown_on_the_window_before_it_is_kept() {
+        let done = steps();
+        let chosen = show_then_keep(
+            Scheme::Dusk,
+            Scheme::Velvet,
+            |scheme| {
+                done.borrow_mut().push(format!("show {scheme:?}"));
+                Ok(())
+            },
+            |scheme| {
+                done.borrow_mut().push(format!("keep {scheme:?}"));
+                Ok(())
+            },
         );
+        assert_eq!(chosen, Ok(Scheme::Dusk));
+        assert_eq!(*done.borrow(), ["show Dusk", "keep Dusk"]);
+    }
+
+    #[test]
+    fn a_choice_the_window_does_not_take_is_not_kept() {
+        let done = steps();
+        let chosen = show_then_keep(
+            Look::Light,
+            Look::Windows,
+            |_| Err("Windows didn't take that.".to_string()),
+            |look| {
+                done.borrow_mut().push(format!("keep {look:?}"));
+                Ok(())
+            },
+        );
+        assert_eq!(chosen, Err("Windows didn't take that.".to_string()));
+        assert!(done.borrow().is_empty()); // the next start is as this one was
+    }
+
+    #[test]
+    fn a_choice_that_cannot_be_kept_comes_off_the_window_again() {
+        let done = steps();
+        let chosen = show_then_keep(
+            Scheme::Dusk,
+            Scheme::Velvet,
+            |scheme| {
+                done.borrow_mut().push(format!("show {scheme:?}"));
+                Ok(())
+            },
+            |_| Err("The disk is full.".to_string()),
+        );
+        assert_eq!(chosen, Err("The disk is full.".to_string()));
+        assert_eq!(*done.borrow(), ["show Dusk", "show Velvet"]);
     }
 }

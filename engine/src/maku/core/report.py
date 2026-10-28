@@ -141,7 +141,7 @@ def _special(special: SpecialState) -> str:
     return "- " + " · ".join(parts)
 
 
-_SIZE_ORDER = ("SD", "720p", "1080p", "4K", "8K")
+_SIZE_ORDER = ("SD", "720p", "1080p", "1440p", "4K", "8K")
 
 
 def conversion_summary(pictures: Iterable[tuple[int, int]], standard: Standard) -> str:

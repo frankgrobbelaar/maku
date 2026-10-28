@@ -248,7 +248,7 @@ function NowConverting(props: { running: RunningJob; gpu: QueueStatus["gpu"]; pa
       />
       <div
         aria-hidden="true"
-        className="relative h-37.5 flex-[0_0_200px] overflow-hidden rounded-14 bg-[#6fa8dc] shadow-[0_20px_40px_-20px_rgb(0_0_0/0.6)]"
+        className="relative h-37.5 flex-[0_0_200px] overflow-hidden rounded-14 bg-inset shadow-[0_20px_40px_-20px_rgb(0_0_0/0.6)]"
       >
         {still && <img src={still} alt="" className="size-full object-cover" />}
       </div>
@@ -391,7 +391,7 @@ function NowAdding(props: { running: RunningJob; paused: boolean }) {
       />
       <div
         aria-hidden="true"
-        className="relative h-37.5 flex-[0_0_200px] overflow-hidden rounded-14 bg-[#6fa8dc] shadow-[0_20px_40px_-20px_rgb(0_0_0/0.6)]"
+        className="relative h-37.5 flex-[0_0_200px] overflow-hidden rounded-14 bg-inset shadow-[0_20px_40px_-20px_rgb(0_0_0/0.6)]"
       >
         {still && <img src={still} alt="" className="size-full object-cover" />}
       </div>
@@ -486,7 +486,7 @@ function NowHearing(props: { running: RunningJob; gpu: QueueStatus["gpu"]; pause
       />
       <div
         aria-hidden="true"
-        className="relative h-37.5 flex-[0_0_200px] overflow-hidden rounded-14 bg-[#6fa8dc] shadow-[0_20px_40px_-20px_rgb(0_0_0/0.6)]"
+        className="relative h-37.5 flex-[0_0_200px] overflow-hidden rounded-14 bg-inset shadow-[0_20px_40px_-20px_rgb(0_0_0/0.6)]"
       >
         {still && <img src={still} alt="" className="size-full object-cover" />}
       </div>
@@ -663,11 +663,12 @@ function Ring({ busy }: { busy: number }) {
   );
 }
 
+/** A figure on the featured panel, in a box of the scheme's deepest dark. */
 function Stat({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 rounded-18 border border-white/12 bg-[rgb(6_10_28/0.62)] p-3.5",
+        "flex flex-col gap-1.5 rounded-18 border border-white/12 bg-inset/62 p-3.5",
         className,
       )}
     >

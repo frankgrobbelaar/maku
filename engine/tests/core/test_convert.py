@@ -5,7 +5,6 @@ from fractions import Fraction
 from pathlib import PureWindowsPath
 
 from maku.core.convert import (
-    AudioPlan,
     Colours,
     check,
     interlace_command,
@@ -54,9 +53,9 @@ FILM_4K = hdr10(Video("hevc", 3840, 2160, Fraction(16, 9), FILM, 10, False))
 
 
 def film_4k() -> MediaInfo:
-    """A 4K HDR10 film in HEVC 10-bit, with its Blu-ray sound as it came."""
+    """A 4K HDR10 film in HEVC 10-bit, in its Blu-ray's M2TS, with its sound as it came."""
     return MediaInfo(
-        "mkv",
+        "mpegts",
         7200.0,
         60_000_000_000,
         FILM_4K,
@@ -76,9 +75,13 @@ def test_an_episode_keeps_its_sound_subtitles_and_fonts():
         False,
         False,
     )
-    assert made.audio == (AudioPlan(0, False), AudioPlan(1, False))  # copied as they are
+    assert made.audio == ("copy", "copy")  # copied as they are
     assert made.subtitles == ("copy",)
     assert (made.fonts, made.output.name) == (True, "Starfall (2019) - S01E05.mkv")
+
+
+def maps(command: list[str]) -> list[str]:
+    return [command[at + 1] for at, part in enumerate(command) if part == "-map"]
 
 
 def test_a_new_picture_at_its_own_size_is_only_made_10_bit():
@@ -90,19 +93,32 @@ def test_a_new_picture_at_its_own_size_is_only_made_10_bit():
     assert command[:7] == [FFMPEG, "-nostdin", "-v", "error", "-y", "-i", str(SOURCE)]
     assert command[command.index("-vf") + 1] == "format=p010le"
     assert command[command.index("-c:v") + 1] == "hevc_nvenc"
-    assert [part for part in command if part in ("-map", "0:V:0", "0:a?", "0:s?", "0:t?")] == [
-        "-map",
-        "0:V:0",
-        "-map",
-        "0:a?",
-        "-map",
-        "0:s?",
-        "-map",
-        "0:t?",
-    ]
+    assert maps(command) == ["0:V:0", "0:a?", "0:s:0", "0:t?"]
     assert command[command.index("-c:a:0") + 1] == "copy"
     assert f"MAKU={TAG}" in command
     assert command[-3:] == ["-f", "matroska", str(WORK)]
+
+
+# What MKVToolNix writes of each track as it muxes (and MakeMKV too), in either spelling: ffmpeg
+# copies a stream's tags into what it makes, where they'd describe the original, not the result.
+STATISTICS = (
+    "BPS",
+    "NUMBER_OF_BYTES",
+    "NUMBER_OF_FRAMES",
+    "_STATISTICS_WRITING_APP",
+    "_STATISTICS_WRITING_DATE_UTC",
+    "_STATISTICS_TAGS",
+)
+
+
+def test_the_result_carries_none_of_the_originals_statistics():
+    for media in (episode(), film_4k()):  # a new picture, and one copied
+        command = one_command(FF, SOURCE, WORK, recipe(SOURCE, media, decide(media, UHD), tag=TAG))
+
+        cleared = {command[at + 1] for at, part in enumerate(command) if part == "-metadata:s"}
+
+        wanted = {f"{name}{spelling}=" for name in STATISTICS for spelling in ("", "-eng")}
+        assert {*wanted, "DURATION-eng="} <= cleared  # ffmpeg writes its own DURATION
 
 
 def test_nvenc_is_set_for_live_action_and_held_to_the_originals_bit_rate():
@@ -136,18 +152,39 @@ def test_nvenc_is_set_for_live_action_and_held_to_the_originals_bit_rate():
     ]
 
 
-def test_a_picture_that_doesnt_say_its_bit_rate_is_held_to_the_whole_files():
+def test_a_picture_that_doesnt_say_its_bit_rate_is_held_to_the_whole_files_less_its_sound():
     media = replace(episode(), video=replace(EPISODE, bit_rate=None))
 
     made = recipe(SOURCE, media, decide(media, UHD), tag=TAG)
 
-    assert made.peak == round(2_250_000_000 * 8 / 2700.0)  # 6.7 Mb/s, sound and all
+    # 6.7 Mb/s in all, less two Dolby Digital tracks that don't say theirs (640 kb/s each)
+    assert made.peak == round(2_250_000_000 * 8 / 2700.0 - 2 * 640_000)
+
+
+def test_a_file_whose_sound_can_t_be_told_apart_is_held_to_the_whole_files():
+    sound = (Audio("truehd", 8, "eng", True), Audio("truehd", 8, "fra", True))
+    small = replace(
+        episode(), size=900_000_000, video=replace(EPISODE, bit_rate=None), audio=sound
+    )  # 2.7 Mb/s in all, less than its sound usually runs
+
+    made = recipe(SOURCE, small, decide(small, UHD), tag=TAG)
+
+    assert made.peak == round(900_000_000 * 8 / 2700.0)
 
 
 def test_no_ceiling_reaches_past_what_players_expect_of_its_size():
     made = recipe(SOURCE, film_4k(), decide(film_4k(), FULL_HD), tag=TAG)
 
     assert made.peak == 40_000_000  # 1080p's most, though the 4K original ran far higher
+
+
+def test_1440p_has_a_ceiling_of_its_own_between_1080ps_and_4ks():
+    video = Video("h264", 2560, 1440, Fraction(16, 9), FILM, 8, False, bit_rate=80_000_000)
+    media = replace(episode(), video=video, size=30_000_000_000)
+
+    made = recipe(SOURCE, media, decide(media, UHD), tag=TAG)
+
+    assert (made.width, made.height, made.peak) == (2560, 1440, 60_000_000)
 
 
 def test_4k_hdr_comes_down_to_1080p_with_its_colours_set_on_every_frame():
@@ -181,9 +218,26 @@ def test_blu_ray_pcm_becomes_flac_and_the_rest_of_the_sound_is_copied():
     command = one_command(FF, SOURCE, WORK, made)
 
     assert made.method is Method.REMUX
-    assert made.audio == (AudioPlan(0, False), AudioPlan(1, True))
+    assert made.audio == ("copy", "flac")
     assert command[command.index("-c:a:0") + 1] == "copy"  # TrueHD as it is
     assert command[command.index("-c:a:1") + 1] == "flac"
+
+
+def test_sound_mkv_cant_hold_is_made_into_sound_it_holds():
+    sound = (
+        Audio("pcm_s8", 2, "eng", True),
+        Audio("pcm_f32be", 2, "eng", True),
+        Audio("pcm_u32le", 2, "eng", True),
+        Audio("truehd", 8, "eng", True),
+    )
+    media = replace(episode(), container="mov", audio=sound, subtitles=(), fonts=0)
+    source = SOURCE.with_suffix(".mov")
+
+    command = one_command(FF, source, WORK, recipe(source, media, decide(media, UHD), tag=TAG))
+
+    ways = [command[command.index(f"-c:a:{number}") + 1] for number in range(4)]
+    assert ways == ["flac", "pcm_f32le", "pcm_s32le", "copy"]
+    assert "0:a?" in maps(command)  # every sound track is kept
 
 
 def test_mp4s_text_subtitles_become_srt():
@@ -196,6 +250,55 @@ def test_mp4s_text_subtitles_become_srt():
 
     assert made.subtitles == ("srt",)
     assert made.output == SOURCE  # an MKV beside it
+
+
+RECORDING_SUBTITLES = (
+    Subtitle("dvb_subtitle", "eng", False, False),
+    Subtitle("dvb_teletext", "eng", False, False),
+    Subtitle("mov_text", "fra", True, False),
+    Subtitle("eia_608", "eng", False, False),
+)
+
+
+def test_subtitles_mkv_cant_hold_are_left_out_of_the_result():
+    media = replace(episode(), container="mpegts", subtitles=RECORDING_SUBTITLES, fonts=0)
+    source = SOURCE.with_suffix(".ts")
+    made = recipe(source, media, decide(media, UHD), tag=TAG)
+
+    command = one_command(FF, source, WORK, made)
+
+    assert made.subtitles == ("copy", None, "srt", None)
+    assert maps(command) == ["0:V:0", "0:a?", "0:s:0", "0:s:2", "0:t?"]
+    assert command[command.index("-c:s:0") + 1] == "copy"
+    assert command[command.index("-c:s:1") + 1] == "srt"
+    assert "-c:s:2" not in command
+
+
+def test_the_check_counts_the_subtitles_kept():
+    media = replace(episode(), container="mpegts", subtitles=RECORDING_SUBTITLES, fonts=0)
+    made = recipe(SOURCE, media, decide(media, UHD), tag=TAG)
+    picture = Video("hevc", 1920, 1080, Fraction(16, 9), FILM, 10, False)
+    result = replace(media, container="mkv", video=picture, maku_tag=TAG)
+
+    kept = replace(result, subtitles=(RECORDING_SUBTITLES[0], RECORDING_SUBTITLES[2]))
+
+    assert check(media, kept, made) == []
+    assert check(media, result, made) == ["It has 4 subtitle tracks, not 2"]
+
+
+def test_an_odd_size_loses_its_last_line_not_its_shape():
+    video = Video("av1", 1920, 803, Fraction(1920, 803), FILM, 10, False)
+    media = replace(episode(), video=video)
+    made = recipe(SOURCE, media, decide(media, UHD), tag=TAG)
+    made_up = Video("hevc", 1920, 802, Fraction(960, 401), FILM, 10, False)
+
+    command = one_command(FF, SOURCE, WORK, made)
+    after = preview_command(FF, SOURCE, PNG, made, at=60.0)
+
+    assert (made.width, made.height, made.scaled, made.cropped) == (1920, 802, False, True)
+    assert command[command.index("-vf") + 1] == "crop=1920:802:0:0,format=p010le"
+    assert after[after.index("-vf") + 1] == "crop=1920:802:0:0,format=yuv420p"
+    assert check(media, replace(media, video=made_up, maku_tag=TAG), made) == []
 
 
 def test_an_interlaced_picture_is_deinterlaced_before_anything_else():

@@ -51,18 +51,32 @@ class Catalog:
         """Whether there's a key to ask TMDB with."""
         return bool(credentials.load(self._paths, "tmdb"))
 
-    def search(self, text: str, *, films_first: bool = False) -> list[Entry]:
+    def search(
+        self, text: str, *, films_first: bool = False, year: int | None = None
+    ) -> list[Entry]:
         """Shows and films whose names fit `text`, as entries: those of the kind the files look
-        like first (films for a film), then the other kind, each as TMDB ranks them."""
+        like first (films for a film), then the other kind, each as TMDB ranks them. With a
+        `year`, that year's first (see `search_kind`)."""
         first, second = search_order(films_first=films_first)
-        return [*self.search_kind(text, first), *self.search_kind(text, second, first=False)]
+        return [
+            *self.search_kind(text, first, year=year),
+            *self.search_kind(text, second, first=False, year=year),
+        ]
 
-    def search_kind(self, text: str, media: Media, *, first: bool = True) -> list[Entry]:
+    def search_kind(
+        self, text: str, media: Media, *, first: bool = True, year: int | None = None
+    ) -> list[Entry]:
         """The shows, or the films, whose names fit `text`, as entries, as TMDB ranks them: as
-        many as the kind the files look like deserves (`first`), fewer of the other."""
+        many as the kind the files look like deserves (`first`), fewer of the other. With a
+        `year` (a film's release, a show's first episode), TMDB is asked for that year's, so a
+        film of a name many share is found however far down the rest it comes; when that year
+        has none (a name's year can be a season's or a special's), for any year's."""
         tmdb = self.tmdb()
+        hits = tmdb.search(media, text, year) if year is not None else []
+        if not hits:
+            hits = tmdb.search(media, text)
         found: list[Entry] = []
-        for hit in tmdb.search(media, text)[: _FIRST if first else _SECOND]:
+        for hit in hits[: _FIRST if first else _SECOND]:
             entry = self._entry(tmdb, media, hit.id)
             if entry is not None:
                 found.append(entry)
@@ -70,7 +84,8 @@ class Catalog:
 
     def entry(self, number: int, *, fresh: bool = False) -> Entry | None:
         """One entry by its id (a show's TMDB number, or a film's negated), or None when TMDB has
-        no such one. `fresh` asks again anyway (how far a show still airing has got)."""
+        no such one. `fresh` asks again anyway (how far a show still airing has got, the films
+        a film's collection has now)."""
         media, item = tmdb_of(number)
         return self._entry(self.tmdb(), media, item, fresh=fresh)
 
@@ -82,7 +97,7 @@ class Catalog:
         if media == "tv":
             return catalog.show_entry(details)
         collection = catalog.collection_of(details)
-        parts = tmdb.collection(collection) if collection is not None else None
+        parts = tmdb.collection(collection, fresh=fresh) if collection is not None else None
         return catalog.film_entry(details, parts)
 
 

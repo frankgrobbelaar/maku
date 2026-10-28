@@ -48,6 +48,8 @@ export function Notices() {
 
   if (!notice) return null;
   const { link } = notice;
+  // The note is the featured panel, dark on a light page too (its accent and focus ring with
+  // it); the shadow under it is the page's own, soft on a light page.
   return (
     <div
       role="status"
@@ -55,42 +57,44 @@ export function Notices() {
       onMouseLeave={() => setHeld(false)}
       onFocus={() => setHeld(true)}
       onBlur={() => setHeld(false)}
-      className="flex animate-pop items-center gap-3.5 rounded-18 bg-featured px-4 py-3.5 text-white shadow-toast"
+      className="animate-pop rounded-18 shadow-toast"
     >
-      <span
-        aria-hidden="true"
-        className="relative size-11 shrink-0 overflow-hidden rounded-12 bg-[#2449b8]"
-      >
-        <span className="absolute -top-2.5 -right-2.5 size-8 rounded-full bg-featured-orb" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="font-extrabold">{notice.title}</span>
-        <span className="text-12 text-white/80">{notice.body}</span>
-      </span>
-      {link && (
-        <Button
-          size="sm"
-          variant="primary"
+      <div className="flex items-center gap-3.5 rounded-18 bg-featured px-4 py-3.5 text-white scheme-dark">
+        <span
+          aria-hidden="true"
+          className="relative size-11 shrink-0 overflow-hidden rounded-12 bg-white/12"
+        >
+          <span className="absolute -top-2.5 -right-2.5 size-8 rounded-full bg-featured-orb" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-extrabold">{notice.title}</span>
+          <span className="text-12 text-white/80">{notice.body}</span>
+        </span>
+        {link && (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              setNotice(null);
+              setHeld(false);
+              void navigate(link);
+            }}
+          >
+            View
+          </Button>
+        )}
+        <button
+          type="button"
+          aria-label="Dismiss"
           onClick={() => {
             setNotice(null);
             setHeld(false);
-            void navigate(link);
           }}
+          className="press inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/70 hover:text-white"
         >
-          View
-        </Button>
-      )}
-      <button
-        type="button"
-        aria-label="Dismiss"
-        onClick={() => {
-          setNotice(null);
-          setHeld(false);
-        }}
-        className="press inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/70 hover:text-white"
-      >
-        <X size={16} aria-hidden="true" />
-      </button>
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
     </div>
   );
 }

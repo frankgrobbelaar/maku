@@ -135,10 +135,14 @@ Everything decided so far. Don't ask again; change only with the owner.
   identifies nothing; Home, "Which title is this?" and the scan say so, with the way to add one.
 - Names are read as releases write them: scene names end their title at the episode code, the
   year or the release's words ("The.Harbour.Line.S02E03.1080p.WEB-DL", "Starfall.2008.EXTENDED",
-  "glass.orchard.s01e05e06"); season folders, specials (season 0), absolute numbers, films in
-  parts (CD1) and samples (extras) are understood. A film's year groups it apart from a remake.
-  What Maku isn't sure of waits on **"Which title is this?"**, with its guesses; a video that is
-  neither is "set aside". The owner's choices are pinned so a rescan never undoes them.
+  "glass.orchard.s01e05e06"); season folders, specials (season 0), absolute numbers, daily
+  shows' days ("2021.04.12"), films in parts (CD1) and samples (extras) are understood. The year
+  in a name groups a film or a series apart from its remake (and is searched with), and a name
+  tagged with TMDB's id (`{tmdb-12345}`) is that title. An episode the show's list doesn't have
+  yet waits, once Maku has asked TMDB again, and is never counted into an earlier season; a film
+  another of its name fits as well waits too. What Maku isn't sure of waits on **"Which title is
+  this?"**, with its guesses; a video that is neither is "set aside". The owner's choices are
+  pinned so a rescan never undoes them.
 - **Collections**: the films TMDB keeps in one collection make one shelf item and a page of their
   own, named as TMDB names the collection ("The Starfall Collection"), with "Missing films" (the
   collection's films the library lacks, looked up in the background, a coming one marked so). A
@@ -156,14 +160,17 @@ Everything decided so far. Don't ask again; change only with the owner.
   only makes files bigger; a TV upscales as well). HDR (PQ and HLG) is kept, its colours set with
   ffmpeg's `setparams` (ffmpeg 9 ignores them as options) and checked in the result; Dolby
   Vision's own layer only while a file needs no new picture, and profile 5 is never made anew.
-  Every sound track is kept as it is (TrueHD, DTS-HD, Atmos); only DVD and Blu-ray PCM, which MKV
-  can't hold, becomes FLAC. Interlaced discs are deinterlaced (telecined film too, not restored to
-  24 frames). The result is HEVC 10-bit in MKV, on the card's encoder (NVENC, AMF or Quick Sync),
-  checked before it replaces its original.
+  Every sound track is kept as it is (TrueHD, DTS-HD, Atmos); only sound MKV can't hold changes:
+  integer PCM becomes FLAC (32-bit stays PCM), float PCM stays as it is, and subtitles MKV can't
+  hold (teletext, closed captions) are left out, saying so. Old bit-rate tags are cleared from
+  results and never trusted; a picture of an odd size is made one line smaller. Interlaced discs
+  are deinterlaced (telecined film too, not restored to 24 frames). A picture is named as people
+  call it: 1440p is 1440p, and 1920x1200 is 1080p. The result is HEVC 10-bit in MKV, on the
+  card's encoder (NVENC, AMF or Quick Sync), checked before it replaces its original.
 - NVENC's settings (measured 2026-10-27 on the owner's card): preset p6, constant quality 21, with
-  a maxrate of the original's own bit rate, at most 15/25/40/100 Mb/s for SD/720p/1080p/4K
-  (without a maxrate NVENC's VBR quietly caps at its preset's figure, about 10 Mb/s at 1080p:
-  Kura's settings have that cap too). On the GTX 1660 Super an hour of 1080p converts in about 8
+  a maxrate of the original's own bit rate, at most 15/25/40/60/100 Mb/s for
+  SD/720p/1080p/1440p/4K (without a maxrate NVENC's VBR quietly caps at its preset's figure, about
+  10 Mb/s at 1080p: Kura's settings have that cap too). On the GTX 1660 Super an hour of 1080p converts in about 8
   minutes and an hour of 4K in about 32. Setup's last step and Settings › About test the encoder,
   the player and DirectML (for the speech models), and time this PC. See docs/stack/encoding.md.
 - No piracy, in any form (as Kura): Maku looks after video already on the PC and plays it only in

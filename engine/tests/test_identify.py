@@ -2,7 +2,7 @@
 
 import json
 import sqlite3
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -12,9 +12,11 @@ from maku.core.names import Kind
 from maku.identify import Identifier, UnplacedError
 from maku.library import find_files, folders, read_file, unread
 from maku.titles import franchises
+from maku.tmdb import API as TMDB
 from tests.fake_ffprobe import REPORT
-from tests.services import internet, with_key
+from tests.services import HARBOUR_1985, NAMESAKES, internet, with_key
 from tests.shelf import NOW, identify, library
+from tests.tmdb_data import tv_details
 
 
 def placed(conn: sqlite3.Connection) -> dict[str, tuple[object, ...]]:
@@ -455,6 +457,209 @@ def test_a_sure_match_spares_tmdb_the_other_kinds_search(
     assert placed(conn)["Glass Orchard - S01E01.mkv"][0] == "sure"
     searched = [path for path in web.paths() if "/search/" in path]
     assert searched == ["GET https://api.themoviedb.org/3/search/tv"]
+
+
+def harbour_airing(listed: int) -> dict[str, object]:
+    """The Harbour Line as TMDB lists it while its third season airs: `listed` of it so far."""
+    return tv_details(
+        4101,
+        "The Harbour Line",
+        (8, 10, listed),
+        first_aired=date(2019, 3, 4),
+        status="Returning Series",
+        aired={(2, 1): date(2021, 4, 5), (3, 1): date(2026, 9, 14)},
+    )
+
+
+NEWEST = "The.Harbour.Line.S03E05.1080p.WEB-DL-GRP.mkv"
+
+
+def test_the_newest_episode_is_looked_for_in_tmdbs_list_afresh(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(conn, root, ["Downloads/The.Harbour.Line.S03E04.1080p.WEB-DL-GRP.mkv"], minutes=45)
+    identify(keyed, conn, internet(shows={4101: harbour_airing(4)}))
+    # Within the hour, so Maku's list isn't due again; TMDB lists the fifth by now.
+    library(conn, root, [f"Downloads/{NEWEST}"], minutes=45)
+
+    identify(keyed, conn, internet(shows={4101: harbour_airing(5)}))
+
+    assert placed(conn)[NEWEST] == ("sure", "The Harbour Line", "series", 3, 5)
+
+
+def test_an_episode_tmdb_doesnt_list_even_when_asked_afresh_waits(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    first = "The.Harbour.Line.S01E05.HDTV.x264-GRP.mkv"
+    library(conn, root, [f"TV/The Harbour Line (2019)/Season 01/{first}"], minutes=45)
+    identify(keyed, conn, internet(shows={4101: harbour_airing(4)}))
+    library(conn, root, [f"Downloads/{NEWEST}"], minutes=45)
+    web = internet(shows={4101: harbour_airing(4)})
+
+    identify(keyed, conn, web)
+
+    assert placed(conn)[first] == ("sure", "The Harbour Line", "series", 1, 5)
+    assert placed(conn)[NEWEST] == ("unsure", None, None, None, None)  # not season 1's fifth
+    assert f"GET {TMDB}/tv/4101" in web.paths()  # its list was asked for again
+
+
+def test_the_owners_choice_looks_for_the_episode_in_tmdbs_list_afresh(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(conn, root, ["Downloads/The.Harbour.Line.S03E04.1080p.WEB-DL-GRP.mkv"], minutes=45)
+    library(conn, root, ["Downloads/THL.S03E05.1080p.WEB-DL-GRP.mkv"], minutes=45)
+    identify(keyed, conn, internet(shows={4101: harbour_airing(4)}))
+    owner = Identifier(keyed, internet(shows={4101: harbour_airing(5)}), now=lambda: NOW)
+
+    owner.choose(conn, ids(conn)["THL.S03E05.1080p.WEB-DL-GRP.mkv"], 4101, Kind.EPISODE)
+
+    assert placed(conn)["THL.S03E05.1080p.WEB-DL-GRP.mkv"] == (
+        "sure",
+        "The Harbour Line",
+        "series",
+        3,
+        5,
+    )
+
+
+def test_the_owners_choice_of_a_show_that_doesnt_list_the_episode_asks_which_it_is(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(conn, root, ["Downloads/THL.S03E05.1080p.WEB-DL-GRP.mkv"], minutes=45)
+    identify(keyed, conn, internet(shows={4101: harbour_airing(4)}))
+    owner = Identifier(keyed, internet(shows={4101: harbour_airing(4)}), now=lambda: NOW)
+    [file_id] = ids(conn).values()
+
+    with pytest.raises(UnplacedError) as raised:
+        owner.choose(conn, file_id, 4101, Kind.EPISODE)
+
+    assert str(raised.value) == "Which episode is it? The Harbour Line has no season 3 episode 5."
+    assert placed(conn)["THL.S03E05.1080p.WEB-DL-GRP.mkv"] == ("none", None, None, None, None)
+
+
+def test_a_series_and_its_remake_are_told_apart_by_their_years(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(
+        conn,
+        root,
+        [
+            "Downloads/The.Harbour.Line.1985.S01E01.DVDRip.x264-GRP.mkv",
+            "Downloads/The.Harbour.Line.2019.S01E01.1080p.WEB-DL-GRP.mkv",
+            "Downloads/The.Harbour.Line.S01E02.HDTV.x264-GRP.mkv",  # which of the two, who knows
+        ],
+        minutes=45,
+    )
+    web = internet(shows={4199: HARBOUR_1985})
+
+    identify(keyed, conn, web)
+
+    rows = conn.execute(
+        """SELECT f.path, f.matched, t.tmdb_id, t.year, f.season, f.episode
+           FROM files f LEFT JOIN titles t ON t.id = f.title_id"""
+    )
+    assert {Path(row["path"]).name: tuple(row)[1:] for row in rows} == {
+        "The.Harbour.Line.1985.S01E01.DVDRip.x264-GRP.mkv": ("sure", 4199, 1985, 1, 1),
+        "The.Harbour.Line.2019.S01E01.1080p.WEB-DL-GRP.mkv": ("sure", 4101, 2019, 1, 1),
+        "The.Harbour.Line.S01E02.HDTV.x264-GRP.mkv": ("unsure", None, None, None, None),
+    }
+    years = {
+        asked.query.get("first_air_date_year") for asked in web.asked if "/search/" in asked.url
+    }
+    assert {"1985", "2019"} <= years  # TMDB was asked for each year's
+
+
+def test_a_year_tmdb_doesnt_give_the_title_is_looked_up_without_it(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    # Glass Orchard began in 2012, not 2013: nothing that year, so it's asked for without one.
+    library(conn, root, ["TV/Glass Orchard (2013)/Glass Orchard - S01E01.mkv"], minutes=45)
+
+    identify(keyed, conn, internet())
+
+    assert placed(conn) == {"Glass Orchard - S01E01.mkv": ("sure", "Glass Orchard", "series", 1, 1)}
+
+
+def test_a_film_named_without_its_year_waits_while_a_namesake_fits_as_well(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    # The 2004 film is 97 minutes; TMDB ranks the 2024 one (112 minutes) first.
+    library(conn, root, ["Movies/Northern Lights.mkv"], minutes=97)
+
+    identify(keyed, conn, internet(films={7203: NAMESAKES[7203]}))
+
+    row = conn.execute("SELECT matched, guesses FROM files").fetchone()
+    assert row["matched"] == "unsure"
+    assert [(guess["year"], guess["minutes"]) for guess in json.loads(row["guesses"])] == [
+        (2004, 97),
+        (2024, 112),
+    ]
+
+
+def test_a_film_tmdb_ranks_past_its_first_five_is_found_by_its_year(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    # Seven films called Northern Lights; the 1962 one is TMDB's sixth.
+    library(conn, root, ["Movies/Northern.Lights.1962.1080p.BluRay.x264-GRP.mkv"], minutes=110)
+    web = internet(films=NAMESAKES)
+
+    identify(keyed, conn, web)
+
+    title = conn.execute("SELECT tmdb_id, year FROM titles").fetchone()
+    assert placed(conn)["Northern.Lights.1962.1080p.BluRay.x264-GRP.mkv"][0] == "sure"
+    assert (title["tmdb_id"], title["year"]) == (7208, 1962)
+    searched = [asked.query for asked in web.asked if asked.url.startswith(f"{TMDB}/search/movie")]
+    assert searched[0]["primary_release_year"] == "1962"
+
+
+def test_a_daily_shows_episode_named_by_its_day_lands_on_that_days_episode(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    # Season 2 aired weekly from 5 April 2021: the 12th was its second.
+    dated = "The.Harbour.Line.2021.04.12.1080p.WEB.h264-GRP.mkv"
+    numbered = "The.Harbour.Line.S02E02.720p.HDTV.x264-GRP.mkv"  # the same, named the other way
+    library(conn, root, [f"Downloads/{dated}", f"TV/The Harbour Line/{numbered}"], minutes=45)
+
+    identify(keyed, conn, internet())
+
+    assert placed(conn) == {
+        dated: ("sure", "The Harbour Line", "series", 2, 2),
+        numbered: ("sure", "The Harbour Line", "series", 2, 2),
+    }
+
+
+def test_a_film_whose_name_gives_tmdbs_id_is_that_film_whatever_shares_its_name(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(conn, root, ["Movies/Northern Lights {tmdb-7206}.mkv"], minutes=98)
+    web = internet(films=NAMESAKES)
+
+    identify(keyed, conn, web)
+
+    title = conn.execute("SELECT tmdb_id, year FROM titles").fetchone()
+    assert placed(conn)["Northern Lights {tmdb-7206}.mkv"][0] == "sure"
+    assert (title["tmdb_id"], title["year"]) == (7206, 1987)
+    assert not [path for path in web.paths() if "/search/" in path]  # looked up by its id alone
+
+
+def test_a_shows_folder_that_gives_tmdbs_id_tells_a_series_from_its_remake(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(
+        conn, root, ["TV/The Harbour Line {tmdb-4199}/The Harbour Line - S01E02.mkv"], minutes=45
+    )
+
+    identify(keyed, conn, internet(shows={4199: HARBOUR_1985}))
+
+    title = conn.execute("SELECT tmdb_id, year FROM titles").fetchone()
+    assert placed(conn)["The Harbour Line - S01E02.mkv"] == (
+        "sure",
+        "The Harbour Line",
+        "series",
+        1,
+        2,
+    )
+    assert (title["tmdb_id"], title["year"]) == (4199, 1985)
 
 
 def test_a_burnt_discs_film_is_offered_but_never_taken(

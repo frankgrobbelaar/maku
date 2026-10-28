@@ -158,6 +158,28 @@ def test_a_file_at_the_standard_by_the_time_its_shown_says_what_it_was_to_get(
     assert (waiting.method, waiting.gpu_seconds) == (Method.REENCODE, 0.0)
 
 
+def test_a_file_at_the_standard_by_its_turn_is_passed_over_not_failed(
+    paths: DataPaths, shows: Path, conn: sqlite3.Connection
+):
+    told: list[Told] = []
+    queue = make_queue(paths, programs(RESULT), told=told)
+    queue.add([1])
+    with conn:  # the standard changed since it joined: what it is now needs nothing
+        conn.execute("UPDATE files SET probe = ? WHERE id = 1", (json.dumps(report(1920, 1080)),))
+
+    assert queue.work_once() is True
+
+    [passed] = queue.status().today
+    assert (passed.state, passed.problem) == (
+        "skipped",
+        "It's at your standard now, so there's nothing to convert.",
+    )
+    with pytest.raises(LookupError):
+        queue.mark_broken(passed.id)  # it isn't broken: nothing went wrong
+    assert told == []  # nothing was converted, and nothing failed
+    assert not (shows / "Glass Orchard (2018) - S01E01.mkv").read_text().startswith("converted")
+
+
 def test_files_with_nothing_to_convert_are_passed_over(queue: Queue, conn: sqlite3.Connection):
     with conn:
         at_standard = report(1920, 1080)

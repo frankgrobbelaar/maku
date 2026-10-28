@@ -12,7 +12,7 @@ import json
 import logging
 import sqlite3
 from collections import defaultdict
-from collections.abc import Callable, Collection, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import PurePath, PureWindowsPath
@@ -20,7 +20,7 @@ from pathlib import PurePath, PureWindowsPath
 from maku.cache import Cache
 from maku.catalog import Catalog, NoKeyError, search_order
 from maku.config import DataPaths
-from maku.core.catalog import Entry, Film, Media, Show, TitleKind, tmdb_of
+from maku.core.catalog import Entry, Film, Media, Show, TitleKind, entry_id, tmdb_of
 from maku.core.identify import (
     SURE,
     FileFacts,
@@ -28,8 +28,12 @@ from maku.core.identify import (
     Guess,
     group_files,
     guesses,
+    merged,
     respelled,
     searches,
+    sure_of,
+    tagged,
+    with_year,
 )
 from maku.core.names import Kind, ParsedName, parse_name
 from maku.core.placing import Placement, named_special, numbered_through, place
@@ -71,6 +75,7 @@ class _Home:
     show: Show | None = None
     film: bool = False  # the title is a film: a file is the whole of it
     specials: bool = False  # unused: TMDB keeps a show's specials in its season 0
+    fresh: bool = False  # the show's episode list was asked of TMDB just now
 
 
 class Identifier:
@@ -140,17 +145,21 @@ class Identifier:
     def _look_up(self, group: Group, *, series: bool = True) -> list[Guess]:
         """TMDB's shows and films for a group, as guesses: the kind the files look like first
         (films for a film), the other only while none is sure, which spares TMDB half the asking.
-        While none is sure, shorter forms of a numbered film's name are asked for too
-        (core/identify.py's `searches`; its series alone unless `series` is False). When nothing
-        at all is found, the name may be one TMDB writes otherwise ("Harbourline"): what its first
-        word finds says how ("Harbour Line"), and the name is asked for that way."""
+        The year the files give is asked for first (maku/catalog.py's `search_kind`). While none
+        is sure, shorter forms of a numbered film's name are asked for too (core/identify.py's
+        `searches`; its series alone unless `series` is False). When nothing at all is found, the
+        name may be one TMDB writes otherwise ("Harbourline"): what its first word finds says how
+        ("Harbour Line"), and the name is asked for that way. Files whose names give TMDB's id
+        ("{tmdb-7206}") are that show or film, looked up by it, unless TMDB has no such one."""
+        likely, other = search_order(films_first=group.movie)
+        if by_id := self._by_id(group, likely):
+            return by_id
         entries: dict[int, Entry] = {}
         ranked: list[Guess] = []
-        likely, other = search_order(films_first=group.movie)
         order: tuple[tuple[Media, bool], ...] = ((likely, True), (other, False))
         for text in searches(group, series=series):
             for media, first in order:
-                for entry in self._catalog.search_kind(text, media, first=first):
+                for entry in self._catalog.search_kind(text, media, first=first, year=group.year):
                     entries.setdefault(entry.id, entry)
                 ranked = guesses(group, list(entries.values()))
                 if ranked and ranked[0].confidence >= SURE:
@@ -159,8 +168,17 @@ class Identifier:
         if not ranked and rest:
             near = self._catalog.search(first, films_first=group.movie)
             if again := respelled(group.query, near):
-                ranked = guesses(group, self._catalog.search(again, films_first=group.movie))
+                found = self._catalog.search(again, films_first=group.movie, year=group.year)
+                ranked = guesses(group, found)
         return ranked
+
+    def _by_id(self, group: Group, media: Media) -> list[Guess]:
+        """The show or film whose TMDB id the group's names give, as the one sure guess; none
+        when they give none, or TMDB has no such one."""
+        if group.tmdb_id is None:
+            return []
+        found = self._catalog.entry(entry_id(media, group.tmdb_id))
+        return [tagged(found)] if found is not None else []
 
     def choose(
         self,
@@ -230,29 +248,30 @@ class Identifier:
     ) -> Placed:
         """Places the files (`kinds`, the owner's file first) in a show or film, pinned. An
         episode Maku can't place keeps waiting, or waits now; so does a file that keeps its own
-        kind (`kept`, in a whole title's change) and doesn't fit."""
+        kind (`kept`, in a whole title's change) and doesn't fit. One the show's kept list can't
+        place has it asked of TMDB again first: it may be newer than the list."""
+        tmdb = self._catalog.tmdb()
         entry = self._catalog.entry(entry_id)
-        home = self._title_for(conn, entry, self._catalog.tmdb()) if entry else None
+        home = self._title_for(conn, entry, tmdb) if entry else None
         if entry is None or home is None:
             raise LookupError("TMDB no longer has that show or film.")
         film = home.film or entry.kind is TitleKind.MOVIE or kinds[file_id] is Kind.MOVIE
         files = _facts(conn, list(kinds))
-        through: set[int] = set() if film else _numbered_through(conn, files, home)
+        typed = {file_id: episode} if episode is not None else {}
+        wheres: dict[int, Placement | None] = {facts.id: None for facts in files}
+        if not film:
+            wheres = _chosen_places(conn, files, kinds, typed, entry, home)
+            if None in wheres.values() and not home.fresh:
+                home = self._afresh(conn, entry, home, tmdb)
+                wheres = _chosen_places(conn, files, kinds, typed, entry, home)
         chosen: list[tuple[FileFacts, Placement | None, Kind]] = []
         unfit: list[int] = []
         for facts in files:
-            as_kind = kinds[facts.id]
-            parsed = replace(facts.parsed, kind=as_kind)
-            if facts.id == file_id and episode is not None:
-                parsed = replace(parsed, episode=episode, episode_end=None)
-                if as_kind is Kind.SPECIAL:
-                    parsed = replace(parsed, season=0)
-            elif facts.id in through:
-                parsed = replace(parsed, folder_season=None)  # its number places it
-            where = None if film else _placement(parsed, entry, home)
+            as_kind, where = kinds[facts.id], wheres[facts.id]
             if where is None and not film and (as_kind is Kind.EPISODE or facts.id in kept):
                 if facts.id == file_id:
-                    raise UnplacedError(_which_episode(entry, parsed.episode))
+                    number = episode if episode is not None else facts.parsed.episode
+                    raise UnplacedError(_which_episode(entry, number, _season(facts.parsed)))
                 unfit.append(facts.id)
                 continue
             chosen.append((facts, where, as_kind))
@@ -307,13 +326,21 @@ class Identifier:
 
     def search(self, conn: sqlite3.Connection, file_id: int, text: str) -> list[Guess]:
         """TMDB's shows and films for `text`, scored against one file, for the owner to pick
-        from."""
+        from. A year typed after the name ("Starfall 1962", "Starfall (1962)") asks TMDB for
+        that year's too, however far down the rest of that name TMDB ranks it."""
         facts = _facts(conn, [file_id])
-        if not facts or not text.strip():
+        typed = text.strip()
+        if not facts or not typed:
             return []
-        movie = facts[0].parsed.kind is Kind.MOVIE
-        group = Group(text.strip(), facts[0].parsed.year, movie, tuple(facts))
-        return guesses(group, self._catalog.search(text.strip(), films_first=movie))
+        parsed = facts[0].parsed
+        movie = parsed.kind in (Kind.MOVIE, Kind.DVD)  # a disc is looked up as a film is
+        as_typed = Group(typed, parsed.year, movie, tuple(facts))
+        found = [guesses(as_typed, self._catalog.search(typed, films_first=movie))]
+        name, year = with_year(typed)
+        if year is not None:
+            dated = Group(name, year, movie, tuple(facts))
+            found.append(guesses(dated, self._catalog.search(name, films_first=movie, year=year)))
+        return merged(*found)
 
     def _link_unlinked(self, conn: sqlite3.Connection) -> None:
         """The entries files are matched to that Maku has no links of, linked now so their
@@ -335,24 +362,24 @@ class Identifier:
         ranked: list[Guess],
         tmdb: Tmdb,
     ) -> tuple[int, int]:
-        """Matches one group's files, or leaves them for the owner. Returns (sure, unsure)."""
+        """Matches one group's files, or leaves them for the owner. Returns (sure, unsure). A
+        file the show's kept list can't place has the list asked of TMDB again first: it may be
+        an episode newer than the list ("S03E05" the day it airs)."""
         stamp = self._now().isoformat()
-        best = ranked[0] if ranked else None
-        sure = best is not None and best.confidence >= SURE and not group.disc
-        home = self._title_for(conn, best.entry, tmdb) if best and sure else None
+        best = None if group.disc else sure_of(ranked)
+        home = self._title_for(conn, best.entry, tmdb) if best else None
         if best is None or home is None:
             _mark_unsure(conn, group.files, ranked, stamp)
             return 0, len(group.files)
 
         entry = best.entry
         film = home.film or entry.kind is TitleKind.MOVIE  # a file is the whole title
-        through: set[int] = set() if film else _numbered_through(conn, group.files, home)
-        placements: dict[int, Placement | None] = {}
-        for facts in group.files:
-            parsed = facts.parsed
-            if facts.id in through:
-                parsed = replace(parsed, folder_season=None)  # its number places it
-            placements[facts.id] = None if film else _placement(parsed, entry, home)
+        placements: dict[int, Placement | None] = {facts.id: None for facts in group.files}
+        if not film:
+            placements = _places(conn, group.files, entry, home)
+            if None in placements.values() and not home.fresh:
+                home = self._afresh(conn, entry, home, tmdb)
+                placements = _places(conn, group.files, entry, home)
         clashing = _clashes(group.files, placements)
         own = (
             {} if film else self._by_own_names(conn, group, home, placements, clashing, entry, tmdb)
@@ -430,8 +457,8 @@ class Identifier:
         alone = replace(facts, parsed=parsed)
         named = Group(f"{group.query}: {title}", parsed.year, False, (alone,), group.query)
         ranked = self._look_up(named, series=False)
-        best = ranked[0] if ranked else None
-        if best is None or best.confidence < SURE or best.entry.id == series.id:
+        best = sure_of(ranked)
+        if best is None or best.entry.id == series.id:
             return None
         if best.entry.kind is not TitleKind.MOVIE and best.entry.episodes != 1:
             return None  # which of its episodes the file is, its name doesn't say
@@ -468,7 +495,17 @@ class Identifier:
         found = tmdb.show(number)
         if found is None:
             return None
-        return _Home(save_show(conn, found, TitleKind.SERIES, entry.id, self._now()), found)
+        title_id = save_show(conn, found, TitleKind.SERIES, entry.id, self._now())
+        return _Home(title_id, found, fresh=True)
+
+    def _afresh(self, conn: sqlite3.Connection, entry: Entry, home: _Home, tmdb: Tmdb) -> _Home:
+        """A show's home with its episode list asked of TMDB again now, however recently it was
+        (`due`); as it was when TMDB no longer has the show."""
+        found = tmdb.show(tmdb_of(entry.id)[1])
+        if found is None:
+            return home
+        title_id = save_show(conn, found, TitleKind.SERIES, entry.id, self._now())
+        return _Home(title_id, found, fresh=True)
 
 
 def save_show(
@@ -661,6 +698,47 @@ def _placement(parsed: ParsedName, entry: Entry, home: _Home) -> Placement | Non
     return None
 
 
+def _places(
+    conn: sqlite3.Connection, files: Sequence[FileFacts], entry: Entry, home: _Home
+) -> dict[int, Placement | None]:
+    """Where each of a group's files sits in its show, by its name (`_placement`)."""
+    through = _numbered_through(conn, files, home)
+    return {
+        facts.id: _placement(
+            # A file numbered through the show from a season's folder: its number places it.
+            replace(facts.parsed, folder_season=None) if facts.id in through else facts.parsed,
+            entry,
+            home,
+        )
+        for facts in files
+    }
+
+
+def _chosen_places(
+    conn: sqlite3.Connection,
+    files: Sequence[FileFacts],
+    kinds: Mapping[int, Kind],
+    typed: Mapping[int, int],
+    entry: Entry,
+    home: _Home,
+) -> dict[int, Placement | None]:
+    """Where the files the owner chose a show for sit in it: each as the kind chosen for it
+    (`kinds`), by the number the owner gave it (`typed`) or else by its name."""
+    through = _numbered_through(conn, files, home)
+    wheres: dict[int, Placement | None] = {}
+    for facts in files:
+        as_kind = kinds[facts.id]
+        parsed = replace(facts.parsed, kind=as_kind)
+        if (number := typed.get(facts.id)) is not None:
+            parsed = replace(parsed, episode=number, episode_end=None)
+            if as_kind is Kind.SPECIAL:
+                parsed = replace(parsed, season=0)
+        elif facts.id in through:
+            parsed = replace(parsed, folder_season=None)  # its number places it
+        wheres[facts.id] = _placement(parsed, entry, home)
+    return wheres
+
+
 def _numbered_through(
     conn: sqlite3.Connection, files: Sequence[FileFacts], home: _Home
 ) -> set[int]:
@@ -698,9 +776,13 @@ def _placed_in(conn: sqlite3.Connection, release: PurePath, home: _Home) -> list
     ]
 
 
-def _which_episode(entry: Entry, number: int | None) -> str:
+def _which_episode(entry: Entry, number: int | None, season: int | None) -> str:
+    """What the owner is asked when a file can't be placed: its number, and its season when its
+    name or folder gives one ("The Harbour Line has no season 3 episode 5")."""
     if number is None:
         return "Which episode is it? Maku can't tell from its name."
+    if season:
+        return f"Which episode is it? {entry.title} has no season {season} episode {number}."
     return f"Which episode is it? {entry.title} has no episode {number}."
 
 
@@ -715,15 +797,21 @@ def due(row: sqlite3.Row, now: datetime) -> bool:
 
 def _clashes(files: Sequence[FileFacts], placements: dict[int, Placement | None]) -> set[int]:
     """Files placed on the same episode though their own numbers differ: one of them is placed
-    wrongly, so neither is trusted. Copies of one episode carry the same numbers, and stay."""
+    wrongly, so neither is trusted. Copies of one episode carry the same numbers, and stay; a
+    daily show's, named by the day it aired, carries the numbers of that day's episode."""
     by_spot: dict[tuple[int, int], list[FileFacts]] = defaultdict(list)
     for facts in files:
         where = placements.get(facts.id)
         if where is not None:
             by_spot[(where.season, where.episode)].append(facts)
     clashing: set[int] = set()
-    for together in by_spot.values():
-        numbers = {(_season(f.parsed), f.parsed.episode, f.parsed.part) for f in together}
+    for (season, episode), together in by_spot.items():
+        numbers = {
+            (season, episode, None)
+            if f.parsed.aired is not None and f.parsed.episode is None
+            else (_season(f.parsed), f.parsed.episode, f.parsed.part)
+            for f in together
+        }
         if len(numbers) > 1:
             clashing.update(f.id for f in together)
     return clashing

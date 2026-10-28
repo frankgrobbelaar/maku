@@ -482,6 +482,29 @@ describe("SettingsPage", () => {
     expect(radio(/^Velvet/)).toHaveAttribute("aria-checked", "false");
   });
 
+  it("goes back to the colours it keeps when the ones picked couldn't be kept", async () => {
+    fakeEngine({ "/folders": FOLDERS });
+    renderSettings("general");
+    const answer = shell.invoke.getMockImplementation();
+    shell.invoke.mockImplementation((command: string, args?: unknown) =>
+      command === "set_scheme"
+        ? Promise.reject("Maku couldn't keep that: the disk is full.")
+        : answer?.(command, args),
+    );
+
+    const schemes = await screen.findByRole("radiogroup", { name: "Colours" });
+    const radio = (name: RegExp) => within(schemes).getByRole("radio", { name });
+    await waitFor(() => expect(radio(/^Velvet/)).toHaveAttribute("aria-checked", "true"));
+    radio(/^Dusk/).click();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Maku couldn't keep that: the disk is full.",
+    );
+    expect(document.documentElement.dataset.scheme).toBe("velvet");
+    expect(radio(/^Velvet/)).toHaveAttribute("aria-checked", "true");
+    expect(radio(/^Dusk/)).toHaveAttribute("aria-checked", "false");
+  });
+
   it("moves the data to another drive, as the engine starts again", async () => {
     const fetch = fakeEngine({
       "/folders": FOLDERS,

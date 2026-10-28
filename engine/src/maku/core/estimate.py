@@ -25,8 +25,15 @@ from maku.core.standard import Decision, Method, size_name
 
 FILM = Fraction(24000, 1001)  # assumed when a file doesn't say its frame rate
 _FULL_HD = 1920 * 1080  # pixels: a picture that doesn't say its size counts as 1080p
-# Bits a second of a new picture, by its size: what live action comes to at constant quality 21.
-PICTURE_RATES = {"SD": 1_500_000, "720p": 3_500_000, "1080p": 7_000_000, "4K": 20_000_000}
+# Bits a second of a new picture, by its size: what live action comes to at constant quality 21
+# (1440p between 1080p's and 4K's, as its pixels are: rates grow a little slower than pixels).
+PICTURE_RATES = {
+    "SD": 1_500_000,
+    "720p": 3_500_000,
+    "1080p": 7_000_000,
+    "1440p": 11_000_000,
+    "4K": 20_000_000,
+}
 # Bits a second of a sound track that doesn't say: Blu-ray's lossless tracks run about this high.
 _LOSSLESS_SOUND = 4_000_000
 _SOUND = 640_000  # and a lossy one: Dolby Digital's highest
@@ -79,8 +86,9 @@ def result_bytes(media: MediaInfo, decision: Decision) -> int:
 
 
 def picture_rate(media: MediaInfo) -> float | None:
-    """The original's picture, in bits a second: as the file says, or else the whole file's less
-    its sound. None when it can't be told (a file that doesn't say how long it plays)."""
+    """The original's picture, in bits a second: as the file says (maku/core/media.py sets aside
+    what it can't mean), or else the whole file's less its sound. None when it can't be told (a
+    file that doesn't say how long it plays, or whose sound would be all of it)."""
     video = media.video
     if video is not None and video.bit_rate:
         return float(video.bit_rate)

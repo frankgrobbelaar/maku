@@ -1,11 +1,15 @@
 """Reading file names: made-up series and films, named the ways releases, rips and people name
 them."""
 
+import subprocess
+import sys
+from datetime import date
 from pathlib import PureWindowsPath
 from typing import Any
 
 import pytest
 
+from maku.core import names
 from maku.core.names import Kind, ParsedName, film_part, parse_name
 
 
@@ -250,6 +254,23 @@ class TestKinds:
         assert (result.kind, result.title, result.episode) == (Kind.SPECIAL, "Quiet Hours", 1)
 
     @pytest.mark.parametrize(
+        ("name", "title"),
+        [
+            ("The Special Ones Special 05.mkv", "The Special Ones"),
+            ("Special Branch Special 05.mkv", "Special Branch"),
+            ("Special Branch - Special 05.mkv", "Special Branch"),
+            ("Special Branch SP05.mkv", "Special Branch"),
+        ],
+    )
+    def test_a_special_of_a_show_with_the_word_in_its_name_is_a_special(
+        self, name: str, title: str
+    ):
+        # The show's own "Special" is its name's; the one after it says what the file is.
+        result = parsed(rf"D:\TV\{name}")
+
+        assert (result.kind, result.title, result.episode) == (Kind.SPECIAL, title, 5)
+
+    @pytest.mark.parametrize(
         ("name", "kind"),
         [
             ("Glass Orchard - Film.mkv", Kind.MOVIE),
@@ -330,6 +351,7 @@ class TestExtras:
             r"D:\Videos\Movies\Starfall (2008)\other\Premiere Night.mkv",
             r"D:\Videos\TV\Glass Orchard (2012)\Season 01\Extras\Glass Orchard - S01E01.mkv",
             r"D:\Videos\TV\Glass Orchard (2012)\Season 01\Other\Bloopers.mkv",
+            r"D:\Videos\TV\Glass Orchard (2012)\Other\Bloopers.mkv",
             r"D:\Videos\TV\Glass Orchard (2012)\Featurettes\Glass Orchard - 01.mkv",
             r"D:\Videos\Extras\Starfall Premiere.mkv",
         ],
@@ -362,12 +384,24 @@ class TestExtras:
             r"D:\Scenes\The Lantern Keeper (2016).mkv",
             r"D:\Videos\Movies\Trailer Park Nights (2009).mkv",
             r"D:\Videos\Movies\A Short Goodbye (2010).mkv",
+            # A library's own folders, by kind of film, keep films in such folders too.
+            r"D:\Media\Animation\Shorts\Paper Kites (1999).mkv",
+            r"D:\Videos\Drama\Other\Northern Lights (2004).mkv",
+            r"D:\Videos\Nature\Scenes\The Lantern Keeper (2016).mkv",
         ],
     )
     def test_a_film_in_a_librarys_own_folder_of_such_a_name_is_a_film(self, path: str):
-        # "Other", "Shorts" and "Scenes" hold extras only inside a title's folder, and a word
-        # for an extra is one only at the end of a name, after a dash.
+        # "Other", "Shorts" and "Scenes" hold extras only inside a title's own folder (one with
+        # its year, or a season's), and a word for an extra is one only at the end of a name,
+        # after a dash.
         assert parsed(path).kind is Kind.MOVIE
+
+    @pytest.mark.parametrize(
+        "path",
+        [r"D:\Media\Animation\Shorts\05.mkv", r"D:\Videos\Scenes\05.mkv"],
+    )
+    def test_a_librarys_folder_of_such_a_name_names_no_title(self, path: str):
+        assert parsed(path).folder_title is None
 
 
 class TestNumberedFilmsAndSpecials:
@@ -1078,3 +1112,369 @@ class TestDiscs:
 
     def test_a_stream_file_outside_a_blu_rays_folders_is_a_video(self):
         assert parsed(r"D:\Videos\Starfall (2008)\00000.m2ts").kind is not Kind.DVD
+
+
+def test_a_name_with_only_a_mark_after_its_episode_is_read_without_hanging():
+    # anitopy's own search for an episode's title went round forever on these, holding the
+    # lock every other name waits on. Read in a child, so a hang fails here and never holds up
+    # the rest of the run.
+    paths = [
+        r"D:\TV\Glass Orchard\Glass Orchard - 01 - .x.mkv",
+        r"D:\TV\Glass Orchard\Glass Orchard - S01E01 - .x.mkv",
+        r"D:\TV\Glass Orchard\Glass Orchard - 1x01 - .x.mkv",
+        r"D:\TV\Glass Orchard\Glass Orchard - 01 - .2.mkv",
+        r"D:\TV\Glass Orchard\Glass Orchard 01 - .x.x.mkv",
+    ]
+    code = (
+        "import sys\n"
+        "from pathlib import PureWindowsPath\n"
+        "from maku.core.names import parse_name\n"
+        "for path in sys.argv[1:]:\n"
+        "    found = parse_name(PureWindowsPath(path))\n"
+        "    print(found.title, found.episode)\n"
+    )
+
+    done = subprocess.run(
+        [sys.executable, "-c", code, *paths],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+
+    assert done.stdout.splitlines() == ["Glass Orchard 1"] * len(paths)
+
+
+class TestEpisodeCodes:
+    """An episode code ("S01E05", "1x05") says which episode a file is, and that it's an
+    episode: the words after it are the episode's own title, whatever they say."""
+
+    @pytest.mark.parametrize(
+        ("name", "episode", "own"),
+        [
+            ("S01E01 - Pilot.mkv", 1, "Pilot"),
+            ("s01e05.720p.hdtv.x264-grp.mkv", 5, None),
+            ("1x04 - Low Tide.mkv", 4, "Low Tide"),
+        ],
+    )
+    def test_a_code_alone_takes_its_show_from_its_folders(
+        self, name: str, episode: int, own: str | None
+    ):
+        result = parsed(rf"D:\TV\The Harbour Line (2019)\Season 01\{name}")
+
+        assert (result.kind, result.title, result.best_title, result.year) == (
+            Kind.EPISODE,
+            None,
+            "The Harbour Line",
+            2019,
+        )
+        assert (result.season, result.episode, result.episode_title) == (1, episode, own)
+
+    @pytest.mark.parametrize("own", ["Special", "Movie", "The Movie", "Preview", "Trailer", "Menu"])
+    def test_the_code_decides_the_kind_not_the_episodes_own_title(self, own: str):
+        show = r"D:\TV\Glass Orchard (2012)\Season 02"
+        result = parsed(rf"{show}\Glass Orchard (2012) - S02E07 - {own}.mkv")
+
+        assert (result.kind, result.title, result.season, result.episode) == (
+            Kind.EPISODE,
+            "Glass Orchard",
+            2,
+            7,
+        )
+        assert result.episode_title == own
+
+    def test_a_code_in_season_0_is_a_special_whatever_its_title(self):
+        show = r"D:\TV\Glass Orchard (2012)\Specials"
+        result = parsed(rf"{show}\Glass Orchard (2012) - S00E03 - Movie.mkv")
+
+        assert (result.kind, result.season, result.episode) == (Kind.SPECIAL, 0, 3)
+
+    @pytest.mark.parametrize(
+        ("name", "own"),
+        [
+            ("Glass.Orchard.S01E05.S01E06.720p.HDTV.x264-GRP.mkv", None),
+            ("Glass Orchard - S01E05-S01E06 - Two Wells.mkv", "Two Wells"),
+            ("Glass Orchard - 1x05-06 - Two Wells.mkv", "Two Wells"),
+            ("Glass Orchard - 1x05-1x06 - Two Wells.mkv", "Two Wells"),
+        ],
+    )
+    def test_two_episodes_written_as_two_codes_or_a_range(self, name: str, own: str | None):
+        result = parsed(rf"D:\TV\{name}")
+
+        assert (result.title, result.season, result.episode, result.episode_end) == (
+            "Glass Orchard",
+            1,
+            5,
+            6,
+        )
+        assert result.episode_title == own
+
+    def test_a_season_folder_numbered_by_its_year(self):
+        # Daily shows' seasons go by their years.
+        result = parsed(r"D:\TV\The Harbour Line\Season 2019\05.mkv")
+
+        assert (result.folder_title, result.year, result.folder_season, result.episode) == (
+            "The Harbour Line",
+            None,
+            2019,
+            5,
+        )
+
+    def test_a_code_with_a_years_season(self):
+        result = parsed(
+            r"D:\TV\The Harbour Line\Season 2019\The Harbour Line - S2019E05 - Guest One.mkv"
+        )
+
+        assert (result.kind, result.title, result.year) == (Kind.EPISODE, "The Harbour Line", None)
+        assert (result.season, result.episode, result.episode_title) == (2019, 5, "Guest One")
+
+    def test_a_title_in_lenticular_brackets_before_a_code_is_the_title(self):
+        result = parsed(r"D:\Videos\【港の灯】 S01E01.mkv")
+
+        assert (result.title, result.season, result.episode) == ("港の灯", 1, 1)
+
+
+class TestFilmsWithANumberInTheirTitles:
+    """A film's title can end in a number, which is no episode's: "Area 51", "Paper Kites 2"."""
+
+    @pytest.mark.parametrize(
+        ("path", "title", "year"),
+        [
+            (r"D:\Movies\Area.51.2015.1080p.WEB-DL.mkv", "Area 51", 2015),
+            (r"D:\Movies\Paper Kites 2 (2003).mkv", "Paper Kites 2", 2003),
+            (r"D:\Movies\Paper Kites 3 (2005).mkv", "Paper Kites 3", 2005),
+            (r"D:\Movies\Paper Kites 2 (2003) - pt2.mkv", "Paper Kites 2", 2003),
+            (r"D:\Movies\Paper Kites 2 (2003) - Part 2.mkv", "Paper Kites 2", 2003),
+        ],
+    )
+    def test_a_number_before_a_films_year_is_its_titles(self, path: str, title: str, year: int):
+        result = parsed(path)
+
+        assert (result.kind, result.title, result.year) == (Kind.MOVIE, title, year)
+        assert (result.episode, result.episode_title) == (None, None)
+
+    @pytest.mark.parametrize("part", ["pt1", "Part 1", "CD1", "Disc 1"])
+    def test_makus_own_name_for_a_part_of_such_a_film(self, part: str):
+        film = "Paper Kites 2 (2003)"
+        result = parsed(rf"D:\Movies\{film}\{film} - {part}.mkv")
+
+        assert (result.kind, result.title, result.year, result.episode) == (
+            Kind.MOVIE,
+            "Paper Kites 2",
+            2003,
+            None,
+        )
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            r"D:\Videos\Glass Orchard\Glass Orchard - 05 (2012).mkv",
+            r"D:\TV\Glass Orchard\Season 01\Glass Orchard 05 (2012).mkv",
+        ],
+    )
+    def test_an_episodes_number_stays_after_a_dash_or_in_a_seasons_folder(self, path: str):
+        result = parsed(path)
+
+        assert (result.kind, result.title, result.episode) == (Kind.EPISODE, "Glass Orchard", 5)
+
+    def test_a_part_after_an_episodes_title_stays_in_it(self):
+        result = parsed(r"D:\TV\Glass Orchard\Glass Orchard - S01E05 - The Long Night Part 2.mkv")
+
+        assert (result.episode, result.episode_title) == (5, "The Long Night Part 2")
+
+    def test_an_episode_titled_part_2_is_no_part_of_a_season(self):
+        # Its code says where it goes; "Part 2" after it is the episode's own title, so it and a
+        # copy named "S01E05" alone are the same episode.
+        result = parsed(r"D:\TV\The Harbour Line\The Harbour Line - S01E05 - Part 2.mkv")
+
+        assert (result.season, result.part, result.episode, result.episode_title) == (
+            1,
+            None,
+            5,
+            "Part 2",
+        )
+
+
+class TestEpisodeTitlesEndingInAnExtrasWord:
+    """An episode's own title may end with a word extras are named with ("Blood Sample"): only a
+    release's sample, after its words, is one."""
+
+    @pytest.mark.parametrize(
+        "own",
+        ["Blood Sample", "Sample", "Behind-the-Scene", "Cross-Other", "Cut-Short", "The Interview"],
+    )
+    def test_an_episode_whose_own_title_ends_in_it(self, own: str):
+        # Maku's own clean name.
+        show = r"D:\TV\Glass Orchard (2012)\Season 02"
+        result = parsed(rf"{show}\Glass Orchard (2012) - S02E07 - {own}.mkv")
+
+        assert (result.kind, result.season, result.episode, result.episode_title) == (
+            Kind.EPISODE,
+            2,
+            7,
+            own,
+        )
+
+    def test_a_numbered_episode_whose_own_title_ends_in_it(self):
+        result = parsed(r"D:\TV\Glass Orchard\Glass Orchard - 05 - Blood Sample.mkv")
+
+        assert (result.kind, result.episode, result.episode_title) == (
+            Kind.EPISODE,
+            5,
+            "Blood Sample",
+        )
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Glass.Orchard.S01E05.720p.HDTV.x264-GRP-sample.mkv",
+            "glass.orchard.s01e05-sample.mkv",
+            "Glass.Orchard.S01E05.Pilot.720p.HDTV-sample.mkv",
+            "glass.orchard.05.720p-sample.mkv",
+            "glass.orchard.05.sample.mkv",
+        ],
+    )
+    def test_a_releases_sample_of_an_episode_is_still_an_extra(self, name: str):
+        assert parsed(rf"D:\TV\{name}").kind is Kind.EXTRA
+
+
+class TestDailyShows:
+    """A daily show's episodes go by the day they aired: "The.Harbour.Line.2019.01.15"."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "The.Harbour.Line.2019.01.15.Guest.One.720p.HDTV.x264-GRP.mkv",
+            "The Harbour Line - 2019-01-15 - Guest One.mkv",
+        ],
+    )
+    def test_an_air_date_after_the_title(self, name: str):
+        result = parsed(rf"D:\TV\{name}")
+
+        assert (result.kind, result.title, result.year, result.aired) == (
+            Kind.EPISODE,
+            "The Harbour Line",
+            None,
+            date(2019, 1, 15),
+        )
+        assert (result.season, result.episode, result.episode_title) == (None, None, "Guest One")
+
+    def test_an_air_date_alone_takes_its_show_from_its_folder(self):
+        result = parsed(r"D:\TV\The Harbour Line\2019-01-15 - Guest One.mkv")
+
+        assert (result.kind, result.best_title, result.episode, result.aired) == (
+            Kind.EPISODE,
+            "The Harbour Line",
+            None,
+            date(2019, 1, 15),
+        )
+
+    def test_a_day_that_never_was_is_no_air_date_nor_its_numbers_an_episodes(self):
+        # Which episode it is waits for the owner.
+        result = parsed(r"D:\TV\The.Harbour.Line.2019.02.30.720p.HDTV.x264-GRP.mkv")
+
+        assert (result.kind, result.title, result.aired, result.episode) == (
+            Kind.EPISODE,
+            "The Harbour Line",
+            None,
+            None,
+        )
+
+
+@pytest.fixture
+def in_2026(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(names, "_this_year", lambda: 2026)
+
+
+class TestYears:
+    @pytest.mark.parametrize(
+        "words",
+        [
+            "German.DL",
+            "FRENCH",
+            "TRUEFRENCH",
+            "SPANiSH",
+            "iTALiAN",
+            "NORDiC",
+            "MULTi",
+            "VOSTFR",
+            "DUBBED",
+            "SUBBED",
+        ],
+    )
+    def test_a_releases_language_after_the_year_ends_the_title(self, words: str):
+        result = parsed(rf"D:\Movies\Starfall.2008.{words}.1080p.BluRay.x264-GRP.mkv")
+
+        assert (result.kind, result.title, result.year) == (Kind.MOVIE, "Starfall", 2008)
+
+    def test_a_releases_words_in_brackets_before_the_year_go(self):
+        result = parsed(r"D:\Movies\Starfall [1080p] (2008).mkv")
+
+        assert (result.title, result.year, result.height) == ("Starfall", 2008, 1080)
+
+    @pytest.mark.usefixtures("in_2026")
+    @pytest.mark.parametrize(
+        ("name", "title", "year"),
+        [
+            ("Starfall 2049.mkv", "Starfall 2049", None),
+            ("Starfall 2028.mkv", "Starfall 2028", None),
+            ("Starfall 2027.mkv", "Starfall", 2027),  # next year's film, announced
+            ("Starfall (2027).mkv", "Starfall", 2027),
+        ],
+    )
+    def test_a_year_past_next_year_is_the_titles_own(self, name: str, title: str, year: int | None):
+        result = parsed(rf"D:\Movies\{name}")
+
+        assert (result.kind, result.title, result.year) == (Kind.MOVIE, title, year)
+
+
+class TestIdTags:
+    """Media server apps' tags of a title's ids in a folder's or a file's name ("{tmdb-12345}")
+    are no part of its title; TMDB's is kept, for identifying it."""
+
+    def test_a_shows_folder_with_its_tmdb_id(self):
+        show = "The Harbour Line (2019) {tmdb-12345}"
+        result = parsed(rf"D:\TV\{show}\Season 01\The Harbour Line (2019) - S01E01.mkv")
+
+        assert (result.title, result.folder_title, result.year, result.tmdb_id) == (
+            "The Harbour Line",
+            "The Harbour Line",
+            2019,
+            12345,
+        )
+
+    @pytest.mark.parametrize(
+        ("folder", "name"),
+        [
+            ("Starfall (2008) {tmdb-4567}", "Starfall (2008) {tmdb-4567}"),
+            ("Starfall (2008) {tmdb-4567}", "Starfall (2008)"),
+            ("Starfall (2008) [tmdbid-4567]", "Starfall (2008) [tmdbid-4567]"),
+            ("Movies", "Starfall (2008) {tmdb-4567}"),
+        ],
+    )
+    def test_a_film_with_its_tmdb_id(self, folder: str, name: str):
+        result = parsed(rf"D:\Videos\{folder}\{name}.mkv")
+
+        assert (result.kind, result.title, result.year, result.group, result.tmdb_id) == (
+            Kind.MOVIE,
+            "Starfall",
+            2008,
+            None,
+            4567,
+        )
+
+    @pytest.mark.parametrize(
+        "tag",
+        ["{imdb-tt1234567}", "{tvdb-98765}", "[imdbid-tt1234567]", "{edition-Director's Cut}"],
+    )
+    def test_other_tags_are_left_out_of_the_title(self, tag: str):
+        film = f"Starfall (2008) {tag}"
+        result = parsed(rf"D:\Movies\{film}\{film}.mkv")
+
+        assert (result.kind, result.title, result.folder_title, result.year) == (
+            Kind.MOVIE,
+            "Starfall",
+            "Starfall",
+            2008,
+        )
+        assert (result.group, result.tmdb_id) == (None, None)

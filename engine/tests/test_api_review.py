@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from maku.config import DataPaths
 from tests.fake_web import FakeWeb
-from tests.services import internet, with_key
+from tests.services import NAMESAKES, internet, with_key
 from tests.shelf import identify, library
 
 
@@ -68,6 +68,37 @@ def test_searching_by_a_name_tmdb_knows_in_another_language_finds_it(
 
     assert found[0]["title"] == "The Harbour Line"
     assert found[0]["reasons"][0] == "Title matches"
+
+
+def test_a_year_typed_after_the_name_finds_that_years_film(
+    client: TestClient, paths: DataPaths, conn: sqlite3.Connection, root: Path, web: FakeWeb
+):
+    # Seven films called Northern Lights: the 1962 one is TMDB's sixth, past the five Maku reads.
+    with_key(paths)
+    library(conn, root, ["Movies/Northern Lights.mkv"], minutes=110)
+    identify(paths, conn, internet(films=NAMESAKES))
+    web.answers.update(internet(films=NAMESAKES).answers)
+    [found] = client.get("/review").json()
+
+    for typed in ("Northern Lights 1962", "Northern Lights (1962)"):
+        guesses = client.get(f"/review/{found['id']}/search", params={"q": typed}).json()
+
+        assert (guesses[0]["entryId"], guesses[0]["year"]) == (-7208, 1962)
+
+
+def test_a_discs_film_is_scored_as_a_film_when_the_owner_searches(
+    client: TestClient, paths: DataPaths, conn: sqlite3.Connection, root: Path, web: FakeWeb
+):
+    with_key(paths)
+    library(conn, root, ["Burnt/NORTHERN_LIGHTS/VIDEO_TS/VTS_01_1.VOB"], minutes=97)
+    identify(paths, conn, internet())
+    web.answers.update(internet().answers)
+    [found] = client.get("/review").json()
+
+    guesses = client.get(f"/review/{found['id']}/search", params={"q": "Northern Lights"}).json()
+
+    assert guesses[0]["title"] == "Northern Lights"
+    assert "A film, like the file" in guesses[0]["reasons"]
 
 
 def test_without_a_key_a_search_says_what_maku_needs(

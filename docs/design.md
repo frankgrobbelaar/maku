@@ -64,8 +64,9 @@ To convert is a blue in every scheme (Dusk's leans violet, beside its pink), bro
 
 How it fits together: every colour token reads its scheme's (`--color-accent:
 var(--scheme-accent)`), and the scheme is picked by `data-scheme` on `<html>` (Velvet when there's
-none). The shell keeps the owner's choice (`app/src-tauri/src/look.rs`) and tells the page before
-its first frame (`window.__MAKU_SCHEME__`), so it never shows another scheme first; the window's
+none). The shell keeps the owner's choice (`app/src-tauri/src/look.rs`) and puts it on the page
+before its first frame (its initialization script, `app/src/lib/scheme-script.js`, which also takes
+the session's newest choice after a reload), so it never shows another scheme first; the window's
 own colour under the page follows the scheme too. Settings › General's "Colours"
 (`components/scheme-picker.tsx`) changes it at once (`lib/look.ts`).
 

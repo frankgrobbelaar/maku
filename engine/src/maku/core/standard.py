@@ -2,9 +2,13 @@
 
 The standard is a top size, 4K or 1080p, and every picture ends as HEVC 10-bit in an MKV. Nothing
 is made bigger than it is: a picture bigger than the standard comes down to it, keeping its shape,
-and one at or under it keeps its own size. HDR stays HDR. The sound is kept as it is, every track,
-but for Blu-ray's and DVD's PCM, which MKV can't hold: that becomes FLAC, still lossless. A file
-already HEVC 10-bit, progressive, in MKV and no bigger than the standard is only renamed.
+and one at or under it keeps its own size, but for an odd last line or column, which a new picture
+can't have. HDR stays HDR. The sound is kept as it is, every track, but for what MKV can't hold:
+Blu-ray's and DVD's PCM, and any other such PCM, becomes FLAC, still lossless (float, 32- and
+64-bit PCM stay PCM, as MKV holds it), and any other sound MKV can't hold becomes FLAC too. MP4's
+text subtitles become SRT; subtitles MKV can't hold any way (teletext, closed captions) are left
+out, and the reasons say so. A file already HEVC 10-bit, progressive, in MKV and no bigger than the
+standard is only renamed.
 """
 
 from dataclasses import dataclass, replace
@@ -44,14 +48,44 @@ class Decision:
     reasons: tuple[str, ...] = ()
 
 
-# Sound MKV can't hold, which becomes FLAC (lossless, as it was), and what it's called.
-TO_FLAC = {"pcm_bluray": "Blu-ray's PCM", "pcm_dvd": "DVD's PCM"}
-# Up to 7% over a size still counts as it: cinema's own widths (4096 for 4K, 2048 and 1998 for
-# 1080p) and the odd 1920x1088.
-_SAME_SIZE = 1.07
-# The sizes a picture is called by, with the frame each names: SD (a DVD, or 1024x576 at most),
-# then 720p, 1080p, 4K and 8K. A picture is called by the smallest frame it fits.
-_SIZES = ((1024, 576, "SD"), (1280, 720, "720p"), (1920, 1080, "1080p"), (3840, 2160, "4K"))
+_MKV = "mkv"  # an MKV's container, as maku/core/media.py calls it: its tracks are ones MKV holds
+# Sound MKV holds as it is: Matroska's own codecs, and those ffmpeg's MKV muxer keeps the WAV way
+# (each tried with Maku's ffmpeg, 2026-10-28). Any other becomes what MKV holds (`sound_way`).
+_MKV_SOUND = frozenset(
+    {
+        *("aac", "aac_latm", "ac3", "eac3", "dts", "truehd", "mlp", "flac", "alac", "opus"),
+        *("vorbis", "mp1", "mp2", "mp3", "tta", "wavpack", "amr_nb"),
+        *("wmav1", "wmav2", "wmapro", "wmalossless", "wmavoice"),
+        *("pcm_s16le", "pcm_s16be", "pcm_s24le", "pcm_s24be", "pcm_s32le", "pcm_s32be"),
+        *("pcm_s64le", "pcm_u8", "pcm_f32le", "pcm_f64le", "pcm_alaw", "pcm_mulaw"),
+        *("adpcm_ms", "adpcm_ima_wav", "adpcm_swf", "adpcm_g722", "adpcm_g726", "g723_1"),
+        *("ra_144", "ra_288", "cook", "sipr", "atrac1", "atrac3", "qdm2", "qdmc"),
+    }
+)
+_DISC_PCM = {"pcm_bluray": "Blu-ray's PCM", "pcm_dvd": "DVD's PCM"}  # what they're called
+# Subtitles MKV holds as they are: Matroska's own (text, ASS, WebVTT, DVD's, Blu-ray's and DVB's
+# pictures, Blu-ray's text and ARIB's captions, as Maku's ffmpeg names them).
+_MKV_SUBTITLES = frozenset(
+    {
+        *("subrip", "text", "ass", "webvtt", "dvd_subtitle", "dvb_subtitle"),
+        *("hdmv_pgs_subtitle", "hdmv_text_subtitle", "arib_caption"),
+    }
+)
+_MADE_SRT = frozenset({"mov_text"})  # MP4's text subtitles, which ffmpeg makes SRT
+# What subtitles MKV can't hold any way are called, as the reasons say they're left out.
+_SUBTITLE_NAMES = {
+    "dvb_teletext": "Teletext subtitles",
+    "eia_608": "Closed captions",
+    "ttml": "TTML subtitles",
+    "xsub": "DivX subtitles",
+}
+# The frames a picture is called by, by their 16:9 widths: SD (a DVD, or 1024x576 at most), 720p,
+# 1080p, 1440p and 4K; anything bigger is 8K. A picture is called by the smallest frame it fits:
+# up to 7% wider (cinema's own widths: 4096 for 4K, 2048 and 1998 for 1080p) and as tall as a
+# 16:10 picture as wide as the frame (1920x1200 is 1080p, as is the odd 1920x1088).
+_FRAMES = ((1024, "SD"), (1280, "720p"), (1920, "1080p"), (2560, "1440p"), (3840, "4K"))
+_WIDER = 1.07
+_TALLER = Fraction(10, 16)  # a 16:10 picture's height, for its width
 
 
 def decide(media: MediaInfo, standard: Standard) -> Decision:
@@ -82,12 +116,14 @@ def decide(media: MediaInfo, standard: Standard) -> Decision:
         # A deinterlaced picture is a new one: a remux would copy the old one as it is.
         method = Method.REENCODE if deinterlace else Method.REMUX
         reasons = (*extras, *_dolby_vision_lost(video, method))
-        return Decision(method, width, height, deinterlace, reasons)
+        return _made_even(Decision(method, width, height, deinterlace, reasons))
     else:
         already = f"Already {_target_name(standard)} in MKV: only renamed"
         return Decision(Method.RENAME, width, height, reasons=(already,))
     lost = _dolby_vision_lost(video, Method.REENCODE)
-    return Decision(Method.REENCODE, width, height, deinterlace, (reason, *extras, *lost))
+    return _made_even(
+        Decision(Method.REENCODE, width, height, deinterlace, (reason, *extras, *lost))
+    )
 
 
 def deinterlaced(decision: Decision) -> Decision:
@@ -97,21 +133,60 @@ def deinterlaced(decision: Decision) -> Decision:
         return decision
     method = Method.REENCODE if decision.method is Method.REMUX else decision.method
     reasons = ("Interlaced: deinterlaced first", *decision.reasons)
-    return replace(decision, method=method, deinterlace=True, reasons=reasons)
+    return _made_even(replace(decision, method=method, deinterlace=True, reasons=reasons))
 
 
 def size_name(width: int, height: int) -> str:
-    """What a picture's size is called: "SD", "720p", "1080p", "4K" or "8K"."""
-    for box_width, box_height, name in _SIZES:
-        if width <= box_width * _SAME_SIZE and height <= box_height * _SAME_SIZE:
+    """What a picture's size is called: "SD", "720p", "1080p", "1440p", "4K" or "8K"."""
+    for frame_width, name in _FRAMES:
+        if _fits(width, height, frame_width):
             return name
     return "8K"
 
 
+def sound_way(codec: str, container: str) -> str:
+    """How a sound track of a file in `container` ("mp4") goes into the MKV: "copy", as it is (an
+    MKV's own tracks are ones MKV holds), or the codec it's made into where MKV can't hold it.
+    Float PCM stays float ("pcm_f32le"), and 32- or 64-bit PCM stays PCM ("pcm_s32le"): FLAC
+    would keep 24 bits of them. Any other becomes FLAC: the same samples, for PCM up to 24 bits
+    (measured), and the sound as it plays, for the rest."""
+    if container == _MKV or codec in _MKV_SOUND:
+        return "copy"
+    if codec.startswith("pcm_f"):
+        return "pcm_f64le" if "64" in codec else "pcm_f32le"
+    if codec.startswith("pcm_") and ("32" in codec or "64" in codec):
+        return "pcm_s64le" if "64" in codec else "pcm_s32le"
+    return "flac"
+
+
+def subtitle_way(codec: str, container: str) -> str | None:
+    """How a subtitle track of a file in `container` goes into the MKV: "copy", as it is (an
+    MKV's own tracks are ones MKV holds); "srt", for MP4's text; or None, left out: MKV can't hold
+    it, and ffmpeg can't make it into what MKV holds (teletext, closed captions, TTML, which ffmpeg
+    can't read)."""
+    if container == _MKV or codec in _MKV_SUBTITLES:
+        return "copy"
+    return "srt" if codec in _MADE_SRT else None
+
+
+def _fits(width: int, height: int, frame_width: int) -> bool:
+    """Whether a picture fits a frame (see _FRAMES): no more than a few columns wider, and no
+    taller than a 16:10 picture as wide as the frame."""
+    return width <= frame_width * _WIDER and height <= frame_width * _TALLER
+
+
 def _bigger(video: Video, standard: Standard) -> bool:
-    """Whether the picture is bigger than the standard's 16:9 frame, beyond a few lines."""
-    scale = max(video.height / standard.height, video.width / _box_width(standard))
-    return scale > _SAME_SIZE
+    """Whether the picture is bigger than the standard's frame: a size called bigger than it."""
+    return not _fits(video.width, video.height, _box_width(standard))
+
+
+def _made_even(decision: Decision) -> Decision:
+    """A new picture of an odd size loses its last line or column: the encoders make 4:2:0
+    pictures in pairs of lines, and NVENC pads an odd one (1920x803 came out 1920x804, measured),
+    which the check would fail. A copied picture keeps its own size."""
+    if decision.method is not Method.REENCODE:
+        return decision
+    return replace(decision, width=_even_down(decision.width), height=_even_down(decision.height))
 
 
 def _hdr_kept(hdr: str | None) -> str:
@@ -127,13 +202,47 @@ def _dolby_vision_lost(video: Video, method: Method) -> tuple[str, ...]:
     return (f"Dolby Vision's own layer can't be carried over: {under} is kept",)
 
 
+# Containers by the name people know them by, where ffprobe's isn't it.
+_CONTAINER_NAMES = {"mpegts": "TS", "mpeg": "MPEG", "asf": "WMV", "mov": "MOV", "webm": "WebM"}
+
+
+def container_name(container: str) -> str:
+    """A container in words: "MP4", "AVI", "TS" (for ffprobe's mpegts)."""
+    return _CONTAINER_NAMES.get(container, container.upper())
+
+
 def _sound_and_container(media: MediaInfo, standard: Standard) -> tuple[str, ...]:
+    """What happens around the picture: another container, sound made FLAC (float PCM in MKV's
+    byte order is the same sound, and goes unsaid), subtitles left out."""
     changes: list[str] = []
     if media.container != standard.container:
-        changes.append(f"{media.container.upper()} becomes {standard.container.upper()}")
-    for codec in dict.fromkeys(audio.codec for audio in media.audio if audio.codec in TO_FLAC):
-        changes.append(f"{TO_FLAC[codec]} sound becomes FLAC, still lossless")
-    return tuple(changes)
+        changes.append(f"{container_name(media.container)} becomes {standard.container.upper()}")
+    for audio in media.audio:
+        if sound_way(audio.codec, media.container) == "flac":
+            pcm = audio.codec.startswith("pcm_")
+            how = "still lossless" if pcm else "as MKV can't hold it"
+            changes.append(f"{_sound_name(audio.codec)} sound becomes FLAC, {how}")
+    for subtitle in media.subtitles:
+        if subtitle_way(subtitle.codec, media.container) is None:
+            changes.append(_left_out(subtitle.codec))
+    return tuple(dict.fromkeys(changes))
+
+
+def _left_out(codec: str) -> str:
+    """Why a subtitle track isn't in the result, in words."""
+    if codec == "unknown":
+        return "Subtitles ffmpeg can't read are left out"
+    named = _SUBTITLE_NAMES.get(codec, f"{codec.upper()} subtitles")
+    return f"{named} are left out: MKV can't hold them"
+
+
+def _sound_name(codec: str) -> str:
+    """What a sound codec is called in a reason: "Blu-ray's PCM", "PCM", "ADPCM", "NELLYMOSER"."""
+    if codec in _DISC_PCM:
+        return _DISC_PCM[codec]
+    if codec.startswith("pcm_"):
+        return "PCM"
+    return "ADPCM" if codec.startswith("adpcm_") else codec.upper()
 
 
 def _picture_matches(video: Video, standard: Standard) -> bool:
@@ -154,6 +263,10 @@ def _box_width(standard: Standard) -> int:
 
 def _even(value: Fraction | float) -> int:
     return round(value / 2) * 2
+
+
+def _even_down(value: int) -> int:
+    return value - value % 2
 
 
 _CODEC_NAMES = {

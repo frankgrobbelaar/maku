@@ -275,6 +275,31 @@ describe("HomePage", () => {
     ).toBeTruthy();
   });
 
+  it.each([
+    ["4k", "kept at its size, up to 4K"],
+    ["1080p", "brought down to 1080p"],
+  ] as const)("says what a %s standard does to what's over 1080p", async (standard, said) => {
+    engineWith({
+      "/settings": { ...SETTINGS, standard },
+      "/folders": [FOLDER],
+      "/library": { ...NO_LIBRARY, folders: 1, files: 4, size: 9e10, hd1080: 2, larger: 2 },
+      "/scan": { ...NO_SCAN, state: "done", stage: "done", found: 4, toRead: 4, read: 4 },
+    });
+    renderHome(READY);
+
+    // 1440p, 4K and 8K alike, HDR or not: the tile can't know which each file is.
+    const pictures = await screen.findByRole("region", { name: "Your videos by picture" });
+    const tiles = () => within(pictures).getAllByRole("listitem");
+    await waitFor(() =>
+      expect(tiles().map((tile) => tile.textContent)).toEqual([
+        "SD0%0kept at its size",
+        "720p0%0kept at its size",
+        "1080p50%2kept at 1080p",
+        `Larger50%2${said}`,
+      ]),
+    );
+  });
+
   it("goes on with what was being watched, and leaves a title out when asked", async () => {
     const stopped: Continuing = {
       titleId: 2,

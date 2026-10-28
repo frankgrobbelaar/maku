@@ -299,6 +299,63 @@ def test_dolby_vision_is_read_from_its_configuration_record_or_its_mp4_tag():
     assert (tagged.dolby_vision, tagged.needs_dolby_vision) == (True, False)
 
 
+def tagged_episode(*, size: int, writer: str | None = None) -> dict[str, object]:
+    """A 45-minute 1080p episode whose picture's statistics say 25 Mb/s and whose Dolby Digital
+    says 640 kb/s, `size` bytes in all, written by `writer` (the file's ENCODER tag)."""
+    format_: dict[str, object] = {
+        "format_name": "matroska,webm",
+        "duration": "2700.0",
+        "size": str(size),
+    }
+    if writer is not None:
+        format_["tags"] = {"ENCODER": writer}
+    return {
+        "streams": [
+            {
+                "codec_name": "h264",
+                "codec_type": "video",
+                "width": 1920,
+                "height": 1080,
+                "pix_fmt": "yuv420p",
+                "tags": {"BPS-eng": "25000000", "NUMBER_OF_BYTES-eng": "8437500000"},
+            },
+            {
+                "codec_name": "ac3",
+                "codec_type": "audio",
+                "channels": 6,
+                "tags": {"BPS-eng": "640000"},
+            },
+        ],
+        "format": format_,
+    }
+
+
+def test_statistics_that_would_make_a_stream_bigger_than_its_file_say_nothing():
+    # Re-encoded from a Blu-ray at 3 Mb/s (1.23 GB in all), its picture's tag still the Blu-ray's.
+    media = media_from_ffprobe(tagged_episode(size=1_228_500_000))
+    remux = media_from_ffprobe(tagged_episode(size=8_700_000_000))  # as the Blu-ray's is
+
+    assert media.video is not None
+    assert media.video.bit_rate is None
+    assert [audio.bit_rate for audio in media.audio] == [640_000]
+    assert remux.video is not None
+    assert remux.video.bit_rate == 25_000_000
+
+
+def test_statistics_in_a_file_ffmpeg_wrote_were_copied_from_another():
+    """ffmpeg copies a stream's tags into the file it makes (Maku's first conversions kept them
+    too), and never counts them itself. MKVToolNix and MakeMKV count them as they write."""
+    copied = media_from_ffprobe(tagged_episode(size=8_700_000_000, writer="Lavf61.7.100"))
+    counted = media_from_ffprobe(
+        tagged_episode(size=8_700_000_000, writer="libebml v1.4.5 + libmatroska v1.7.1")
+    )
+
+    assert copied.video is not None
+    assert (copied.video.bit_rate, copied.audio[0].bit_rate) == (None, None)
+    assert counted.video is not None
+    assert (counted.video.bit_rate, counted.audio[0].bit_rate) == (25_000_000, 640_000)
+
+
 def test_colours_ffprobe_calls_unknown_are_unsaid_and_sdr():
     media = media_from_ffprobe(DVD_RIP_MKV)
     unknown = {

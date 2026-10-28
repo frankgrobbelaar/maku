@@ -143,6 +143,9 @@ function General() {
     look.error ??
     changeScheme.error ??
     scheme.error;
+  // The scheme being chosen while the shell keeps it, then the one it keeps: one it couldn't keep
+  // doesn't stay picked.
+  const chosen = (changeScheme.isPending ? changeScheme.variables : undefined) ?? scheme.data;
   return (
     <Panel title="General">
       <div className="flex flex-wrap items-center justify-between gap-3.5 rounded-16 border border-edge bg-glass px-4 py-3.5">
@@ -167,8 +170,8 @@ function General() {
           </span>
         </span>
         <SchemePicker
-          value={changeScheme.variables ?? scheme.data ?? "velvet"}
-          onChange={(chosen) => changeScheme.mutate(chosen)}
+          value={chosen ?? "velvet"}
+          onChange={(picked) => changeScheme.mutate(picked)}
         />
       </div>
       <Toggle

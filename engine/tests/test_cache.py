@@ -5,7 +5,7 @@ from pathlib import Path
 from maku.cache import DAY, Cache
 from maku.tmdb import API, Tmdb
 from tests.fake_web import FakeWeb
-from tests.services import KEY
+from tests.services import COLLECTIONS, KEY
 
 
 class Clock:
@@ -45,3 +45,14 @@ def test_a_search_asked_twice_reaches_tmdb_once(tmp_path: Path):
     tmdb.search("tv", "GLASS ORCHARD")  # the same question, whatever the case
 
     assert len(web.asked) == 1
+
+
+def test_a_collection_kept_is_asked_for_again_when_asked_afresh(tmp_path: Path):
+    web = FakeWeb({f"GET {API}/collection/9101": COLLECTIONS[9101]})
+    tmdb = Tmdb(KEY, web, cache=Cache(tmp_path / "cache"))
+
+    tmdb.collection(9101)
+    tmdb.collection(9101)  # kept
+    tmdb.collection(9101, fresh=True)  # a weekly look again: a new film may have joined it
+
+    assert len(web.asked) == 2

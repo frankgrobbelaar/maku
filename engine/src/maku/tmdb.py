@@ -71,11 +71,12 @@ class Tmdb:
                 self._cache.put(key, answer)
         return answer
 
-    def collection(self, collection_id: int) -> Json | None:
+    def collection(self, collection_id: int, *, fresh: bool = False) -> Json | None:
         """A collection of films (/collection/{id}), its parts in it, or None when TMDB has no
-        such one. An answer is kept for a week."""
+        such one. An answer is kept for a week; `fresh` asks again anyway (a film may have
+        joined it)."""
         key = f"tmdb collection {collection_id}"
-        answer = self._cache.get(key, 7 * DAY) if self._cache else None
+        answer = self._cache.get(key, 7 * DAY) if self._cache and not fresh else None
         if answer is None:
             try:
                 answer = self._get(f"/collection/{collection_id}")

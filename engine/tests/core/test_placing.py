@@ -1,14 +1,16 @@
-"""Where a file sits in a TMDB show: numbered by season, counted straight through, or by date."""
+"""Where a file sits in a TMDB show: numbered by season, counted straight through, a daily show's
+by the day it aired, or a special by its name or the day its own entry began."""
 
 from dataclasses import replace
 from datetime import date
 from pathlib import PureWindowsPath
+from typing import cast
 
 import pytest
 
 from maku.core.catalog import Entry, Show, TitleKind, show, show_entry
 from maku.core.identify import FileFacts
-from maku.core.names import parse_name
+from maku.core.names import Kind, ParsedName, parse_name
 from maku.core.placing import (
     How,
     Placement,
@@ -34,14 +36,14 @@ def whole(details: dict[str, object]) -> Entry:
     return entry
 
 
-def entry_for(name: str, start: date, episodes: int, kind: TitleKind = TitleKind.SERIES) -> Entry:
-    """An entry that is only part of a show (one part of a season, or a special of its own):
-    the day it began and how many episodes it has say where it sits."""
+def entry_for(name: str, start: date, episodes: int) -> Entry:
+    """A special's own entry, as a film: the day it first aired and how many episodes it has say
+    which of the show's specials it is."""
     return Entry(
         id=0,
         title=name,
         titles=(name,),
-        kind=kind,
+        kind=TitleKind.MOVIE,
         episodes=episodes,
         minutes=None,
         start=start,
@@ -52,11 +54,8 @@ def entry_for(name: str, start: date, episodes: int, kind: TitleKind = TitleKind
     )
 
 
-# The Harbour Line: seasons of 8, 10 and 10 episodes. Its second season came in two parts, the
-# second from its sixth episode on 10 May 2021 (the season aired weekly from 5 April), and TMDB
-# keeps both in season 2.
+# The Harbour Line: seasons of 8, 10 and 10 episodes, and a special.
 LINE = tmdb_show(HARBOUR)
-PART_TWO = entry_for("The Harbour Line Season 2 Part 2", date(2021, 5, 10), 5)
 
 # Glass Orchard: two seasons, no specials.
 ORCHARD_SHOW = tmdb_show(ORCHARD)
@@ -72,7 +71,7 @@ COLDWATER_DETAILS = tv_details(
     special_dates=(date(2016, 1, 10), date(2016, 6, 26), date(2022, 12, 21)),
 )
 COLDWATER = tmdb_show(COLDWATER_DETAILS)
-SUMMER_SPECIAL = entry_for("Coldwater Bay: Summer Special", date(2016, 6, 26), 1, TitleKind.MOVIE)
+SUMMER_SPECIAL = entry_for("Coldwater Bay: Summer Special", date(2016, 6, 26), 1)
 
 
 def placed(path: str, where: Show, entry: Entry | None = None) -> Placement | None:
@@ -105,25 +104,94 @@ def test_a_season_and_episode_are_taken_as_they_are():
     )
 
 
-def test_a_season_with_numbers_counted_through_the_show():
-    # A release numbered the third season on from the second: 19 to 28.
-    found = placed(r"D:\Videos\[Group] The Harbour Line S3 - 21 [720p].mkv", LINE)
-
-    assert found == Placement(3, 3, None, How.STRAIGHT)
-
-
-def test_a_later_part_numbered_from_one_again_is_placed_by_its_first_air_date():
-    found = placed(r"D:\Videos\[Group] The Harbour Line S2 Part 2 - 03 (1080p).mkv", LINE, PART_TWO)
-
-    assert found == Placement(2, 8, None, How.BY_DATE)
+def test_a_name_that_says_its_season_is_numbered_within_it():
+    # "S3 - 21" is season 3's 21st, which TMDB doesn't list: it waits, rather than being taken
+    # for the 21st counted through the show (season 3's third), as it might be a newer one.
+    assert placed(r"D:\Videos\[Group] The Harbour Line S3 - 21 [720p].mkv", LINE) is None
+    assert placed(r"D:\Videos\[Group] The Harbour Line S3 - 03 [720p].mkv", LINE) == Placement(
+        3, 3, None, How.NUMBERED
+    )
 
 
-def test_the_first_entry_of_a_show_doesnt_shift_its_numbers():
+# The Harbour Line as TMDB listed it before its third season's fifth episode: four so far.
+AIRING = tmdb_show(
+    tv_details(
+        4101,
+        "The Harbour Line",
+        (8, 10, 4),
+        first_aired=date(2019, 3, 4),
+        status="Returning Series",
+        aired={(2, 1): date(2021, 4, 5), (3, 1): date(2026, 9, 14)},
+    )
+)
+
+
+def test_an_episode_its_season_doesnt_list_yet_isnt_counted_from_the_first_season():
+    # The fifth of season 3 isn't the show's fifth, season 1's: it waits for TMDB to list it.
+    assert placed(r"D:\Videos\The.Harbour.Line.S03E05.1080p.WEB-DL-GRP.mkv", AIRING) is None
+    assert placed(r"D:\Videos\The.Harbour.Line.S04E01.1080p.WEB-DL-GRP.mkv", AIRING) is None
+    # Nor in its season's folder: counted through the show, it never lands before that season.
+    assert placed(r"D:\Videos\The Harbour Line\Season 03\05.mkv", AIRING) is None
+
+
+def test_a_releases_one_folder_of_every_season_counts_straight_through():
+    found = placed(r"D:\Videos\The Harbour Line\Season 1\The Harbour Line - 020.mkv", LINE)
+
+    assert found == Placement(3, 2, None, How.STRAIGHT)
+
+
+def test_a_shows_own_entry_doesnt_shift_its_numbers():
     show_itself = whole(HARBOUR)  # starts with the show's first episode
 
     found = placed(r"D:\Videos\The Harbour Line\The Harbour Line - S02E05.mkv", LINE, show_itself)
 
     assert found == Placement(2, 5, None, How.NUMBERED)
+
+
+def test_a_first_episode_tmdb_gives_no_date_shifts_nothing():
+    # TMDB has no day for Glass Orchard's first episode, and its second aired the day it began.
+    details = tv_details(
+        4102,
+        "Glass Orchard",
+        (12,),
+        first_aired=date(2012, 1, 10),
+        aired={(1, 2): date(2012, 1, 10)},
+    )
+    season = cast("dict[str, list[dict[str, object]]]", details["season/1"])
+    season["episodes"][0]["air_date"] = None
+    orchard, entry = tmdb_show(details), whole(details)
+
+    assert placed(r"D:\Videos\Glass.Orchard.S01E01.mkv", orchard, entry) == Placement(
+        1, 1, None, How.NUMBERED
+    )
+    assert placed(r"D:\Videos\Glass Orchard\Glass Orchard - 05.mkv", orchard, entry) == Placement(
+        1, 5, None, How.STRAIGHT
+    )
+
+
+def aired_on(day: date) -> ParsedName:
+    """A daily show's file, named by the day its episode aired ("The.Harbour.Line.2021.04.12")."""
+    return ParsedName(Kind.EPISODE, title="The Harbour Line", aired=day)
+
+
+def test_a_daily_shows_episode_goes_by_the_day_it_aired():
+    # Season 2 aired weekly from 5 April 2021: its second on the 12th.
+    assert place(aired_on(date(2021, 4, 12)), LINE) == Placement(2, 2, None, How.BY_DATE)
+
+
+def test_a_day_no_episode_or_two_aired_places_nothing():
+    double_bill = tmdb_show(
+        tv_details(
+            4101,
+            "The Harbour Line",
+            (8,),
+            first_aired=date(2019, 3, 4),
+            aired={(1, 2): date(2019, 3, 4)},  # its first two aired the same night
+        )
+    )
+
+    assert place(aired_on(date(2021, 4, 13)), LINE) is None
+    assert place(aired_on(date(2019, 3, 4)), double_bill) is None
 
 
 def test_two_episodes_in_one_file_stay_in_one_season():
@@ -248,7 +316,7 @@ def test_an_entry_found_by_a_specials_own_name_goes_by_its_names_among_the_shows
 
 
 def test_a_one_off_special_is_the_one_from_its_day_whatever_the_release_numbers_it():
-    legacy = entry_for("Coldwater Bay: A Keeper's Legacy", date(2016, 6, 26), 1, TitleKind.MOVIE)
+    legacy = entry_for("Coldwater Bay: A Keeper's Legacy", date(2016, 6, 26), 1)
 
     found = placed(
         rf"{SPECIALS}\Coldwater Bay - Special 05 (Reunion) - A Keeper's Legacy.mkv",
@@ -257,12 +325,6 @@ def test_a_one_off_special_is_the_one_from_its_day_whatever_the_release_numbers_
     )
 
     assert found == Placement(0, 2, None, How.BY_DATE)
-
-
-def test_episode_zero_of_a_later_part_isnt_the_episode_before_it():
-    found = placed("D:/Videos/[Group] The Harbour Line S2 Part 2 - 00 (1080p).mkv", LINE, PART_TWO)
-
-    assert found is None
 
 
 def test_a_show_lists_a_special_by_the_day_it_first_aired():

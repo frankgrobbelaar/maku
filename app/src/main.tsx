@@ -7,8 +7,8 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app";
 import { savedScheme, showScheme, startingScheme } from "./lib/look";
 
-// The scheme the shell said, before the first frame; then the one it keeps, should the page have
-// been reloaded since the owner chose another.
+// The scheme the shell's script put on the page before its first frame (lib/scheme-script.js;
+// Velvet outside Maku's window), then the one the shell keeps, should they differ.
 showScheme(startingScheme());
 savedScheme().then(showScheme, () => {});
 

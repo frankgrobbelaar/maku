@@ -191,17 +191,18 @@ function ScanButtons({ scan }: { scan: Scan }) {
 }
 
 /** What's in the library, by picture size: the summary at the top of Home. Each size says what
- * converting to the standard does to it: nothing is made bigger, and 4K stays 4K unless the
- * standard is 1080p. */
+ * converting to the standard does to it: nothing is made bigger, and a picture bigger than the
+ * standard comes down to it. "Larger" is anything over 1080p (1440p, 4K, 8K, HDR or not), so it
+ * says only what's true of them all. */
 function Pictures({ library, standard }: { library: Library; standard: Settings["standard"] }) {
   const sizes = [
     { label: "SD", count: library.sd, note: "kept at its size" },
     { label: "720p", count: library.hd720, note: "kept at its size" },
     { label: "1080p", count: library.hd1080, note: "kept at 1080p" },
     {
-      label: "4K",
+      label: "Larger",
       count: library.larger,
-      note: standard === "4k" ? "kept at 4K, HDR too" : "brought down to 1080p",
+      note: standard === "4k" ? "kept at its size, up to 4K" : "brought down to 1080p",
     },
   ];
   const parts = shares(sizes.map((size) => size.count));

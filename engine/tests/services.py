@@ -9,7 +9,13 @@ shape (tests/tmdb_data.py). No real title appears.
   Ascent (7103, 2015), and Starfall: Origins (7104), still to come.
 - The Lantern Keeper (7201, 2016) and Northern Lights (7202, 2004): films of their own.
 
-TMDB needs the owner's key: `with_key` gives the data folder one.
+Some tests add more (`internet(shows=…, films=…)`): the 1985 series The Harbour Line (4199,
+`HARBOUR_1985`) that the 2019 one remade, and six other films called Northern Lights
+(`NAMESAKES`), each more popular on TMDB than the 2004 one.
+
+TMDB needs the owner's key: `with_key` gives the data folder one. Its searches find what has
+every word asked for among a name's, and keep to the year asked for (`first_air_date_year`,
+`primary_release_year`), as TMDB's do.
 """
 
 import re
@@ -61,6 +67,8 @@ QUIET = tv_details(
 )
 SHOWS = {4101: HARBOUR, 4102: ORCHARD, 4103: QUIET}
 SHOW_NAMES = {4101: ["La Ligne du Port"], 4102: ["Glasgarten"], 4103: []}
+# The series The Harbour Line remade in 2019: one season of six, from 1985.
+HARBOUR_1985 = tv_details(4199, "The Harbour Line", (6,), first_aired=date(1985, 1, 7))
 
 STARFALL_COLLECTION = (9101, "The Starfall Collection")
 STARFALL = movie_details(7101, "Starfall", date(2008, 5, 2), 118, collection=STARFALL_COLLECTION)
@@ -90,6 +98,18 @@ FILMS: dict[int, dict[str, object]] = {
 }
 FILM_NAMES: dict[int, list[str]] = {7201: ["Le Gardien de la Lanterne"]}
 COLLECTIONS = {9101: collection(*STARFALL_COLLECTION, STARFALL, STARFALL_II, ASCENT, ORIGINS)}
+# Other films called Northern Lights, the most popular on TMDB first, all ahead of the 2004 one.
+NAMESAKES: dict[int, dict[str, object]] = {
+    number: movie_details(number, "Northern Lights", released, minutes)
+    for number, released, minutes in (
+        (7203, date(2024, 3, 1), 112),
+        (7204, date(2019, 9, 6), 101),
+        (7205, date(1995, 4, 14), 94),
+        (7206, date(1987, 3, 6), 98),
+        (7207, date(1979, 11, 2), 108),
+        (7208, date(1962, 5, 18), 110),
+    )
+}
 
 
 def with_key(paths: DataPaths) -> DataPaths:
@@ -98,41 +118,36 @@ def with_key(paths: DataPaths) -> DataPaths:
     return paths
 
 
-def internet(*, shows: Mapping[int, dict[str, object]] | None = None) -> FakeWeb:
+def internet(
+    *,
+    shows: Mapping[int, dict[str, object]] | None = None,
+    films: Mapping[int, dict[str, object]] | None = None,
+) -> FakeWeb:
     """TMDB's searches, shows, films and collections. `shows` stands other answers in for some
-    shows: how far one still airing has got by now, say."""
+    shows (how far one still airing has got by now, say) or adds shows, after the rest; `films`
+    adds films (`NAMESAKES`, say), more popular than the rest, so TMDB ranks them first."""
     known = {**SHOWS, **(shows or {})}
+    movies = {**(films or {}), **{n: film for n, film in FILMS.items() if n not in (films or {})}}
+    first_aired = {n: date.fromisoformat(str(show["first_air_date"])) for n, show in known.items()}
+    released = {n: date.fromisoformat(str(film["release_date"])) for n, film in movies.items()}
     answers: dict[str, Answer] = {
         f"GET {TMDB}/authentication": {"success": True},
         f"GET {TMDB}/search/tv": _search(
-            {number: [str(show["name"]), *SHOW_NAMES[number]] for number, show in known.items()},
-            lambda found: tv_search(
-                *(
-                    (n, str(known[n]["name"]), date.fromisoformat(str(known[n]["first_air_date"])))
-                    for n in found
-                )
-            ),
+            {n: [str(show["name"]), *SHOW_NAMES.get(n, [])] for n, show in known.items()},
+            {n: day.year for n, day in first_aired.items()},
+            "first_air_date_year",
+            lambda found: tv_search(*((n, str(known[n]["name"]), first_aired[n]) for n in found)),
         ),
         f"GET {TMDB}/search/movie": _search(
-            {
-                number: [str(film["title"]), *FILM_NAMES.get(number, [])]
-                for number, film in FILMS.items()
-            },
-            lambda found: movie_search(
-                *(
-                    (
-                        n,
-                        str(FILMS[n]["title"]),
-                        date.fromisoformat(str(FILMS[n]["release_date"])),
-                    )
-                    for n in found
-                )
-            ),
+            {n: [str(film["title"]), *FILM_NAMES.get(n, [])] for n, film in movies.items()},
+            {n: day.year for n, day in released.items()},
+            "primary_release_year",
+            lambda found: movie_search(*((n, str(movies[n]["title"]), released[n]) for n in found)),
         ),
     }
     for number, show in known.items():
-        answers[f"GET {TMDB}/tv/{number}"] = tmdb_show(show, SHOW_NAMES[number])
-    for number, film in FILMS.items():
+        answers[f"GET {TMDB}/tv/{number}"] = tmdb_show(show, SHOW_NAMES.get(number, []))
+    for number, film in movies.items():
         answers[f"GET {TMDB}/movie/{number}"] = _film(film, FILM_NAMES.get(number, []))
     for number, parts in COLLECTIONS.items():
         answers[f"GET {TMDB}/collection/{number}"] = parts
@@ -168,17 +183,23 @@ def _film(details: Mapping[str, object], names: list[str]) -> Callable[[Asked], 
 
 
 def _search(
-    names: Mapping[int, list[str]], answer: Callable[[list[int]], object]
+    names: Mapping[int, list[str]],
+    years: Mapping[int, int],
+    year_field: str,
+    answer: Callable[[list[int]], object],
 ) -> Callable[[Asked], object]:
     """A search that finds what has every word asked for among the words of one of its names, as
-    TMDB's, more or less: "starfall" finds every Starfall film, "starfall ii" the second."""
+    TMDB's, more or less: "starfall" finds every Starfall film, "starfall ii" the second. With a
+    year (`year_field`), only what's from that year."""
 
     def search(asked: Asked) -> object:
         wanted = set(_words(asked.query["query"]))
+        year = asked.query.get(year_field)
         found = [
             number
             for number, its in names.items()
             if wanted and any(wanted <= set(_words(name)) for name in its)
+            if year is None or str(years[number]) == year
         ]
         return answer(found)
 

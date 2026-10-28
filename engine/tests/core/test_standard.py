@@ -1,11 +1,21 @@
 """What each file needs to reach the library standard: a top size, 4K or 1080p, in HEVC 10-bit."""
 
+from dataclasses import replace
 from fractions import Fraction
 
 import pytest
 
-from maku.core.media import Audio, MediaInfo, Video
-from maku.core.standard import FULL_HD, UHD, Method, decide, deinterlaced, size_name
+from maku.core.media import Audio, MediaInfo, Subtitle, Video
+from maku.core.standard import (
+    FULL_HD,
+    UHD,
+    Method,
+    decide,
+    deinterlaced,
+    size_name,
+    sound_way,
+    subtitle_way,
+)
 
 AC3 = Audio("ac3", 6, "eng", lossless=False)
 FOUR_THREE = Fraction(4, 3)
@@ -131,6 +141,39 @@ class TestBroughtDown:
 
         assert decision.reasons == ("4K HDR: brought down to 1080p, HDR kept",)
 
+    def test_1440p_comes_down_to_1080p_and_stays_as_it_is_at_4k(self):
+        down = decide(media(2560, 1440), FULL_HD)
+        kept = decide(media(2560, 1440), UHD)
+
+        assert (down.width, down.height) == (1920, 1080)
+        assert down.reasons == ("1440p: brought down to 1080p",)
+        assert (kept.width, kept.height) == (2560, 1440)
+        assert kept.reasons == ("H.264 becomes HEVC 10-bit",)
+
+    def test_a_16_10_picture_1080p_wide_is_1080p_and_keeps_its_size(self):
+        decision = decide(media(1920, 1200, aspect=Fraction(16, 10)), FULL_HD)
+
+        assert (decision.method, decision.width, decision.height) == (Method.REENCODE, 1920, 1200)
+        assert decision.reasons == ("H.264 becomes HEVC 10-bit",)
+
+
+class TestOddSizes:
+    """The encoders make 4:2:0 pictures in pairs of lines: NVENC pads an odd one (1920x803 came
+    out 1920x804, measured), so a new picture of an odd size loses its last line or column."""
+
+    def test_a_new_picture_of_an_odd_size_loses_its_last_line_or_column(self):
+        scope = decide(media(1920, 803, codec="av1", aspect=Fraction(1920, 803)), UHD)
+        small = decide(media(721, 405, aspect=Fraction(721, 405)), FULL_HD)
+
+        assert (scope.method, scope.width, scope.height) == (Method.REENCODE, 1920, 802)
+        assert (small.width, small.height) == (720, 404)
+
+    def test_a_copied_picture_keeps_its_odd_size_till_its_made_anew(self):
+        remux = decide(hevc(1920, 803, container="mp4"), UHD)
+
+        assert (remux.method, remux.width, remux.height) == (Method.REMUX, 1920, 803)
+        assert (deinterlaced(remux).width, deinterlaced(remux).height) == (1920, 802)
+
 
 class TestThePicture:
     def test_a_file_already_at_the_standard_is_only_renamed(self):
@@ -175,10 +218,22 @@ class TestSound:
     def test_blu_ray_pcm_becomes_flac_as_mkv_cant_hold_it(self):
         bluray = Audio("pcm_bluray", 6, "eng", lossless=True)
 
-        decision = decide(hevc(1920, 1080, audio=(bluray, AC3)), UHD)
+        decision = decide(hevc(1920, 1080, container="mpegts", audio=(bluray, AC3)), UHD)
 
         assert decision.method == Method.REMUX
-        assert decision.reasons == ("Blu-ray's PCM sound becomes FLAC, still lossless",)
+        assert decision.reasons == (
+            "TS becomes MKV",
+            "Blu-ray's PCM sound becomes FLAC, still lossless",
+        )
+
+    def test_an_mkvs_own_tracks_are_ones_mkv_holds_and_stay(self):
+        unlisted = Audio("gsm_ms", 1, "eng", lossless=False)  # kept the WAV way
+        unread = Subtitle("unknown", "eng", False, False)  # ffmpeg can't read it, but it's there
+        film = replace(hevc(1920, 1080, audio=(unlisted,)), subtitles=(unread,))
+
+        decision = decide(film, UHD)
+
+        assert decision.method == Method.RENAME  # never remuxed for what's in it
 
     def test_dvd_pcm_becomes_flac_beside_the_new_picture(self):
         dvd = media(720, 480, codec="mpeg2video", aspect=FOUR_THREE, container="mpeg")
@@ -197,6 +252,123 @@ class TestSound:
 
         assert decision.method == Method.REMUX
         assert decision.reasons == ("MP4 becomes MKV",)
+
+    def test_any_pcm_mkv_cant_hold_becomes_flac(self):
+        eight_bit = Audio("pcm_s8", 2, "eng", lossless=True)
+
+        decision = decide(hevc(1920, 1080, container="mov", audio=(eight_bit,)), UHD)
+
+        assert decision.reasons == ("MOV becomes MKV", "PCM sound becomes FLAC, still lossless")
+
+    def test_other_sound_mkv_cant_hold_becomes_flac_as_it_plays(self):
+        adpcm = Audio("adpcm_ima_qt", 2, "eng", lossless=False)
+
+        decision = decide(hevc(1920, 1080, container="mov", audio=(adpcm,)), UHD)
+
+        assert decision.reasons == (
+            "MOV becomes MKV",
+            "ADPCM sound becomes FLAC, as MKV can't hold it",
+        )
+
+    def test_float_pcm_stays_float_pcm_saying_nothing_of_it(self):
+        float_pcm = Audio("pcm_f32be", 2, "eng", lossless=True)
+
+        decision = decide(hevc(1920, 1080, container="mov", audio=(float_pcm,)), UHD)
+
+        assert decision.reasons == ("MOV becomes MKV",)
+
+
+class TestSubtitles:
+    def test_subtitles_mkv_cant_hold_are_left_out_saying_so(self):
+        recording = replace(
+            media(1920, 1080, container="mpegts"),
+            subtitles=(
+                Subtitle("dvb_subtitle", "eng", False, False),
+                Subtitle("dvb_teletext", "eng", False, False),
+                Subtitle("dvb_teletext", "fra", False, False),
+                Subtitle("eia_608", "eng", False, False),
+            ),
+        )
+
+        decision = decide(recording, UHD)
+
+        assert decision.reasons == (
+            "H.264 becomes HEVC 10-bit",
+            "TS becomes MKV",
+            "Teletext subtitles are left out: MKV can't hold them",
+            "Closed captions are left out: MKV can't hold them",
+        )
+
+    def test_mp4s_text_subtitles_become_srt_and_ttml_is_left_out(self):
+        web = replace(
+            hevc(1920, 1080, container="mp4"),
+            subtitles=(
+                Subtitle("mov_text", "eng", True, False),
+                Subtitle("ttml", "eng", True, False),
+            ),
+        )
+
+        decision = decide(web, UHD)
+
+        assert decision.reasons == (
+            "MP4 becomes MKV",
+            "TTML subtitles are left out: MKV can't hold them",
+        )
+
+
+@pytest.mark.parametrize(
+    ("codec", "way"),
+    [
+        *((codec, "copy") for codec in ("truehd", "dts", "eac3", "ac3", "aac", "aac_latm", "opus")),
+        *((codec, "copy") for codec in ("flac", "alac", "mp3", "mp2", "vorbis", "wmav2", "wmapro")),
+        *((codec, "copy") for codec in ("pcm_s16le", "pcm_s24be", "pcm_s32le", "pcm_u8")),
+        *((codec, "copy") for codec in ("pcm_f32le", "pcm_f64le", "pcm_alaw", "adpcm_ms")),
+        # Integer PCM MKV can't hold: FLAC, the same samples (measured up to 24 bits)...
+        *((codec, "flac") for codec in ("pcm_bluray", "pcm_dvd", "pcm_s8", "pcm_u16le")),
+        *((codec, "flac") for codec in ("pcm_u24be", "pcm_s16le_planar", "pcm_s24le_planar")),
+        # ...but FLAC keeps 24 of 32 bits, so 32- and 64-bit PCM stays PCM, as MKV holds it.
+        ("pcm_u32le", "pcm_s32le"),
+        ("pcm_s32le_planar", "pcm_s32le"),
+        ("pcm_s64be", "pcm_s64le"),
+        # Float PCM stays float, in the byte order MKV holds.
+        ("pcm_f32be", "pcm_f32le"),
+        ("pcm_f16le", "pcm_f32le"),
+        ("pcm_f64be", "pcm_f64le"),
+        # Any other sound MKV can't hold becomes FLAC, from what it plays as.
+        ("adpcm_ima_qt", "flac"),
+        ("nellymoser", "flac"),
+    ],
+)
+def test_sound_goes_into_the_mkv_as_it_is_or_as_mkv_holds_it(codec: str, way: str):
+    assert sound_way(codec, "mov") == way
+    assert sound_way(codec, "mkv") == "copy"  # in an MKV already: one MKV holds
+
+
+@pytest.mark.parametrize(
+    ("codec", "way"),
+    [
+        *((codec, "copy") for codec in ("subrip", "ass", "webvtt", "text", "hdmv_text_subtitle")),
+        *((codec, "copy") for codec in ("hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle")),
+        ("arib_caption", "copy"),
+        ("mov_text", "srt"),
+        *((codec, None) for codec in ("dvb_teletext", "eia_608", "ttml", "xsub", "unknown")),
+    ],
+)
+def test_subtitles_go_into_the_mkv_as_they_are_as_srt_or_not_at_all(codec: str, way: str | None):
+    assert subtitle_way(codec, "mpegts") == way
+    assert subtitle_way(codec, "mkv") == "copy"  # in an MKV already: one MKV holds
+
+
+def test_subtitles_ffmpeg_cant_read_are_left_out_saying_only_that():
+    recording = replace(
+        media(1920, 1080, container="mpegts"), subtitles=(Subtitle("unknown", None, False, False),)
+    )
+
+    assert decide(recording, UHD).reasons == (
+        "H.264 becomes HEVC 10-bit",
+        "TS becomes MKV",
+        "Subtitles ffmpeg can't read are left out",
+    )
 
 
 class TestDolbyVision:
@@ -267,11 +439,17 @@ def test_a_picture_brought_down_keeps_its_shape_on_screen(
         (1024, 576, "SD"),
         (1280, 720, "720p"),
         (1280, 536, "720p"),
+        (960, 720, "720p"),  # 4:3 at 720 lines
         (1920, 1080, "1080p"),
         (1920, 800, "1080p"),
         (2048, 1080, "1080p"),
+        (1440, 1080, "1080p"),  # 4:3 at 1080 lines
+        (1920, 1200, "1080p"),  # 16:10, as wide as 1080p
+        (2560, 1440, "1440p"),
+        (2560, 1080, "1440p"),  # as wide as 1440p
         (3840, 2160, "4K"),
         (4096, 1716, "4K"),
+        (5120, 2880, "8K"),  # bigger than 4K
         (7680, 4320, "8K"),
     ],
 )

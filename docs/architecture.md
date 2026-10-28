@@ -167,13 +167,15 @@ goes and the scan's stage is in the `scans` table, so a pause, an exit or a cras
 next start carries on. Then each video read is identified (`maku/identify.py`; see
 [stack/tmdb.md](stack/tmdb.md)): its name and folders are read (`maku/core/names.py`, see
 [stack/anitopy.md](stack/anitopy.md)), files that look like the same series or film are grouped
-(a film by its year too, as a remake takes its name again) and looked up together on TMDB with
-the owner's key (`maku/catalog.py`: both kinds, the kind the files look like first, each with
-every name it goes by), and each show and film found is scored against them
-(`maku/core/identify.py`). A sure one is taken, and a show's episode list says where each file
-sits (`maku/core/placing.py`): by its season and number, or by its number counted straight
-through the show (in a season's folder too, when the folder's files count on from the seasons
-before it). A special goes into its show's season 0 by its number there or by its own name
+(by the year their names give too, as a remake takes its name again, or by TMDB's id when a name
+is tagged with it) and looked up together on TMDB with the owner's key (`maku/catalog.py`: both
+kinds, the kind the files look like first, each with every name it goes by and the year), and
+each show and film found is scored against them (`maku/core/identify.py`). A sure one is taken,
+and a show's episode list says where each file sits (`maku/core/placing.py`): by its season and
+number, by the day a daily show's episode aired, or by its number counted straight through the
+show (in a season's folder too, when the folder's files count on from the seasons before it,
+never back into an earlier one). A file the kept list can't place has the show's list asked for
+again once; one TMDB still doesn't list waits. A special goes into its show's season 0 by its number there or by its own name
 ("Special 05 - The Night Train"); one the
 list doesn't name is looked up by its own name, and placed only when TMDB keeps it as a film or a
 one-off show. Without a TMDB key nothing is looked up: the videos are read and wait, and the
