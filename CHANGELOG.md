@@ -17,7 +17,8 @@ shows these notes when it offers the update.
 - A daily show's episodes named by their day ("The.Harbour.Line.2021.04.12") go to the episode
   TMDB dates that day; a day with none, or with two, waits for you.
 - A name tagged with TMDB's id ("{tmdb-7206}", as media server apps write it) is that series or
-  film, found without a search.
+  film, found without a search: the series or the film of that number whose names are the
+  file's, as TMDB numbers each kind apart.
 
 ### Changed
 
@@ -44,6 +45,13 @@ shows these notes when it offers the update.
     whatever its title says ("- Special").
   - Folders named Shorts, Other or Scenes are extras only inside a title's own folder, and
     `{tmdb-12345}` tags are left out of titles.
+  - A film's edition ("Aliens (1986) Special Edition", "Starfall.2008.Special.Extended.Edition")
+    is no part of its title, and no longer makes it a special.
+  - A number inside a film's title stays in it: "Paper Kites 2 The Long Way Home (2003)" is a
+    film, not episode 2.
+  - "Series 2 - Episode 1", as British shows name them, and "Season.2.Episode.1" are season 2's
+    first episode.
+  - "Quiet Hours - Christmas Special" is the show's special of that name.
 - Finding titles:
   - A show's newest episode no longer lands in season 1 while Maku's episode list hasn't caught
     up: Maku asks TMDB again first, and an episode TMDB doesn't list yet waits for you, so Tidy

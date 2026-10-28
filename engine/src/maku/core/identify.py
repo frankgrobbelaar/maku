@@ -223,10 +223,19 @@ def sure_of(ranked: Sequence[Guess]) -> Guess | None:
 _SAME_NAME = 0.02  # names this alike are the same name, as far as telling titles apart goes
 
 
-def tagged(entry: Entry) -> Guess:
+def tagged(group: Group, entry: Entry) -> Guess | None:
     """The guess for the show or film whose TMDB id the files' names give ("{tmdb-7206}"): sure,
-    as the id says which it is, however many others share its name."""
-    return Guess(entry, 100, ("Its TMDB id is in its name",), 1.0)
+    as the id says which it is, however many others share its name. None when its names aren't
+    the files': TMDB numbers its shows and films apart, so an id is a show's and a film's, and
+    only one of them is likely the files' (none, for a slip of the id)."""
+    alike = name_fit(names(group), entry.titles, main_part=not group.movie)
+    if alike < _TAG_FITS:
+        return None
+    return Guess(entry, 100, ("Its TMDB id is in its name",), alike)
+
+
+# How alike a tagged title's names and the files' must be: "Starfall II" and "Starfall" are.
+_TAG_FITS = 0.6
 
 
 def with_year(text: str) -> tuple[str, int | None]:

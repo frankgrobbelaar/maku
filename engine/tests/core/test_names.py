@@ -844,6 +844,19 @@ class TestReleasePacks:
         )
 
     @pytest.mark.parametrize(
+        "name", ["Quiet Hours - Christmas Special.mkv", "Quiet.Hours.Christmas.Special.mkv"]
+    )
+    def test_a_special_named_after_its_show_with_the_word_last(self, name: str):
+        result = parsed(rf"D:\TV\Quiet Hours\{name}")
+
+        assert (result.kind, result.title, result.episode, result.episode_title) == (
+            Kind.SPECIAL,
+            "Quiet Hours",
+            None,
+            "Christmas Special",
+        )
+
+    @pytest.mark.parametrize(
         "name",
         [
             "The Harbour Line - Creditless Opening.mkv",
@@ -1245,6 +1258,22 @@ class TestFilmsWithANumberInTheirTitles:
             (r"D:\Movies\Paper Kites 3 (2005).mkv", "Paper Kites 3", 2005),
             (r"D:\Movies\Paper Kites 2 (2003) - pt2.mkv", "Paper Kites 2", 2003),
             (r"D:\Movies\Paper Kites 2 (2003) - Part 2.mkv", "Paper Kites 2", 2003),
+            # Inside the title too, its subtitle after it.
+            (
+                r"D:\Movies\Paper Kites 2 The Long Way Home (2003).mkv",
+                "Paper Kites 2 The Long Way Home",
+                2003,
+            ),
+            (
+                r"D:\Movies\Paper.Kites.2.The.Long.Way.Home.2003.1080p.BluRay.x264-GRP.mkv",
+                "Paper Kites 2 The Long Way Home",
+                2003,
+            ),
+            (
+                r"D:\Movies\2 Kites 2 Paper (2007)\2 Kites 2 Paper (2007).mkv",
+                "2 Kites 2 Paper",
+                2007,
+            ),
         ],
     )
     def test_a_number_before_a_films_year_is_its_titles(self, path: str, title: str, year: int):
@@ -1270,6 +1299,8 @@ class TestFilmsWithANumberInTheirTitles:
         [
             r"D:\Videos\Glass Orchard\Glass Orchard - 05 (2012).mkv",
             r"D:\TV\Glass Orchard\Season 01\Glass Orchard 05 (2012).mkv",
+            # Numbered as episodes are, its title after it.
+            r"D:\Videos\Glass Orchard\Glass Orchard 05 The Well (2012).mkv",
         ],
     )
     def test_an_episodes_number_stays_after_a_dash_or_in_a_seasons_folder(self, path: str):
@@ -1478,3 +1509,86 @@ class TestIdTags:
             2008,
         )
         assert (result.group, result.tmdb_id) == (None, None)
+
+
+class TestEditions:
+    """A film's edition ("Special Edition", "Director's Cut") is no part of its title, and its
+    "Special" makes it no show's special."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Starfall (2008) Special Edition",
+            "Starfall Special Edition (2008)",
+            "Starfall (2008) - Collector's Edition",
+            "Starfall.2008.Special.Extended.Edition.1080p.BluRay.x264-GRP",
+            "Starfall.2008.Directors.Cut.1080p.BluRay.x264-GRP",
+            "Starfall (2008) Theatrical Version",
+        ],
+    )
+    def test_a_films_edition_is_left_out(self, name: str):
+        result = parsed(rf"D:\Movies\{name}.mkv")
+
+        assert (result.kind, result.title, result.year) == (Kind.MOVIE, "Starfall", 2008)
+
+    def test_a_film_in_a_folder_named_with_its_edition_is_named_as_its_folder(self):
+        film = "Starfall (2008) Special Edition"
+        result = parsed(rf"D:\Movies\{film}\{film}.mkv")
+
+        assert (result.kind, result.title, result.folder_title, result.year) == (
+            Kind.MOVIE,
+            "Starfall",
+            "Starfall",
+            2008,
+        )
+
+    def test_a_title_that_is_an_edition_stays_whole(self):
+        result = parsed(r"D:\Movies\Director's Cut (2016).mkv")
+
+        assert (result.kind, result.title, result.year) == (Kind.MOVIE, "Director's Cut", 2016)
+
+    def test_a_shows_special_is_still_one(self):
+        result = parsed(r"D:\TV\Quiet Hours\Specials\Quiet Hours - Special - The Night Train.mkv")
+
+        assert result.kind is Kind.SPECIAL
+
+
+class TestBritishSeries:
+    """British shows say "Series" for a season: "Series 2, Episode 1"."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            r"Series 2\Glass Orchard - Series 2 - Episode 1 - The Well",
+            r"Glass Orchard Series 2 Episode 1",
+            r"Glass.Orchard.Series.2.Episode.1.720p.HDTV.x264-GRP",
+            r"Series 2\Glass Orchard - Season 2 - Episode 1 - The Well",
+        ],
+    )
+    def test_a_series_number_and_an_episode_number(self, name: str):
+        result = parsed(rf"D:\TV\Glass Orchard\{name}.mkv")
+
+        assert (result.kind, result.title, result.season, result.episode) == (
+            Kind.EPISODE,
+            "Glass Orchard",
+            2,
+            1,
+        )
+
+    def test_a_series_folder_is_its_season(self):
+        result = parsed(r"D:\TV\Glass Orchard\Series 2\03.mkv")
+
+        assert (result.folder_title, result.folder_season, result.episode) == (
+            "Glass Orchard",
+            2,
+            3,
+        )
+
+    def test_a_film_whose_title_has_series_and_a_number_keeps_it(self):
+        result = parsed(r"D:\Movies\Series 7 The Contenders (2001).mkv")
+
+        assert (result.kind, result.title, result.year) == (
+            Kind.MOVIE,
+            "Series 7 The Contenders",
+            2001,
+        )

@@ -83,7 +83,10 @@ takes its name again (`The.Harbour.Line.1985.S01E01` and `The.Harbour.Line.2019.
 shows). A series' files without a year go with the one year its other files give; beside two
 years of it, they're looked up on their own. Files whose names or folders give TMDB's id, as media
 server apps tag them (`Northern Lights {tmdb-7206}`), are that show or film: it's asked for by
-its id and taken, with no search, unless TMDB has no such one. Then, for each other group:
+its id and taken, with no search. An id names no kind (TMDB numbers its shows and its films apart,
+so 7206 is a show's as well as a film's): the kind the files look like is asked for first, then
+the other, and only one whose names are the files' (`tagged`, at least 60% alike) is taken. When
+neither is, or TMDB has no such one, the name is searched for. Then, for each other group:
 
 1. **The ways its name reads** are asked in turn (`searches`): the name; each of two names when it
    gives one in brackets after the other (`Glass Orchard (The Orchard)`); and for a series' film

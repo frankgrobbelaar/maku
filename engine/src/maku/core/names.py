@@ -73,6 +73,7 @@ def parse_name(path: PurePath) -> ParsedName:
             Kind.EXTRA, title=stem, folder_title=folder_title, tmdb_id=tmdb_id, is_copy=is_copy
         )
     stem = _without_film_part(stem)  # "Northern Lights (2004) CD2" is its second part
+    stem = _SPELLED_CODE.sub(_code, stem)  # "Series 2 - Episode 1" is S02E01
     # A film in a folder of its own, named as it is ("Paper Kites 2 (2003)", or "… - pt1" for
     # its first part), the way films are filed: the name is the film's, its number too.
     own_folder = bool(folder_title and folders.year) and stem == _without_ids(
@@ -149,6 +150,12 @@ def parse_name(path: PurePath) -> ParsedName:
 
     season = _number(_first(found, "season"))
     episode_title, part = _title_and_part(stem, _first(found, "episode_title"))
+    if "special" in types and not numbers and title:
+        # "Quiet Hours - Christmas Special": the show's, by its own name.
+        title, episode_title = _special_named_last(stem, title, folder_title) or (
+            title,
+            episode_title,
+        )
     aired: date | None = None
     scene = _scene(stem)
     if scene is not None and _a_films_number(scene, numbers, folder_season):
@@ -441,7 +448,27 @@ _GROUP_AT_END = re.compile(r"-[a-z0-9]+$", re.IGNORECASE)  # the release group: 
 _ID_TAG = re.compile(
     r"\s*(?:[{\[](?:tmdb|imdb|tvdb)(?:id)?[-=][a-z0-9]+[}\]]|\{edition-[^{}]*\})", re.IGNORECASE
 )
+# A film's edition written out after its title or year, which the end of the name, a bracket, the
+# year or the release's words follow: "Special Edition", "Director's Cut", "Theatrical Version".
+# Not a title that is one ("Director's Cut (2016)"), nor a show's name an episode follows ("Glass
+# Orchard Special Edition - 05").
+_EDITION = re.compile(
+    r"(?<=[^\s._-])[\s._-]+(?:special(?:[\s._-]+extended)?|extended|collector'?s|ultimate|"
+    r"anniversary|limited|deluxe|definitive|remastered|uncut|unrated|theatrical|director'?s)"
+    r"[\s._-]+(?:edition|cut|version)"
+    r"(?=[\s._-]*(?:$|[(\[{]|(?:19|20)\d{2}(?!\d)|"
+    r"(?:\d{3,4}[pi]|4k|uhd|blu-?ray|bdrip|brrip|bdremux|remux|web-?dl|web-?rip|web|hdtv|dvdrip"
+    rf"|hdrip|x26[45]|h\.?26[45]|hevc|{_RELEASE_TAGS})(?![a-z0-9])))",
+    re.IGNORECASE,
+)
 _TMDB_ID = re.compile(r"[{\[]tmdb(?:id)?[-=](?P<id>\d+)[}\]]", re.IGNORECASE)
+# A season and an episode written out, in any separators: "Season 2 - Episode 1",
+# "Season.2.Episode.1", and British shows' "Series 2, Episode 1". Read as the code they stand for.
+_SPELLED_CODE = re.compile(
+    r"\b(?:season|series)[\s._-]*(?P<season>\d{1,2})[\s._,-]+(?:episode|ep\.?)[\s._-]*"
+    r"(?P<episode>\d{1,3})(?!\d)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -524,15 +551,20 @@ def _air_date(stem: str) -> tuple[re.Match[str], date | None] | None:
 
 
 def _a_films_number(scene: _Scene, numbers: list[int], folder_season: int | None) -> bool:
-    """Whether the one number anitopy read is the last word of a film's title, before the film's
-    year: "Area.51.2015", "Paper Kites 2 (2003)". Not after a dash ("Glass Orchard - 05 (2012)")
-    nor in a season's folder: there it's an episode's."""
+    """Whether the one number anitopy read is a word of a film's title, before the film's year:
+    "Area.51.2015", "Paper Kites 2 (2003)", "Paper Kites 2 The Long Way Home (2003)". Not after a
+    dash ("Glass Orchard - 05 (2012)") nor in a season's folder: there it's an episode's; nor,
+    with words after it, written as an episode's is ("Glass Orchard 05 The Well (2012)")."""
     if scene.year is None or scene.episode is not None or scene.dated:
         return False
     if len(numbers) != 1 or folder_season is not None:
         return False
     words = (scene.title or "").split()
-    return len(words) > 1 and words[-2] not in ("-", "–") and _number(words[-1]) == numbers[0]
+    for at in range(1, len(words)):
+        if _number(words[at]) != numbers[0] or words[at - 1] in ("-", "–"):
+            continue
+        return at == len(words) - 1 or not words[at].startswith("0")
+    return False
 
 
 def _without_film_part(stem: str) -> str:
@@ -929,6 +961,26 @@ def _named_special(found: dict[str, str | list[str]]) -> tuple[str, int | None, 
     return match["series"].strip(" -:"), int(number) if number else None, match["name"].strip()
 
 
+def _special_named_last(stem: str, title: str, folder: str | None) -> tuple[str, str] | None:
+    """A special whose name ends with the word, after its show's name, as its show and its own
+    name: "Quiet Hours - Christmas Special" and, in Quiet Hours' folder, "Quiet.Hours.Christmas
+    .Special" are ("Quiet Hours", "Christmas Special"). anitopy reads the word as the file's kind
+    and leaves the rest for the title. None when the name doesn't end with it, or says no more
+    than its show's name."""
+    words = _RELEASE_START.search(stem)
+    if not _SPECIAL_LAST.search(stem[: words.start()] if words else stem):
+        return None
+    if " - " in title:
+        show, own = title.rsplit(" - ", 1)
+        return show.strip(), f"{own.strip()} Special"
+    if folder and title.casefold().startswith(f"{folder.casefold()} "):
+        return folder, f"{title[len(folder) :].strip()} Special"
+    return None
+
+
+_SPECIAL_LAST = re.compile(r"[\s._-]special[\s._-]*$", re.IGNORECASE)
+
+
 def _spaced(title: str | None, stem: str) -> str | None:
     """A scene name's title with its dots as spaces: anitopy can leave one between short words
     ("Salt.x Pepper")."""
@@ -976,9 +1028,16 @@ def _this_year() -> int:
 
 
 def _without_ids(name: str) -> str:
-    """A name without media server apps' tags of its title's ids and edition: "Starfall (2008)
-    {tmdb-4567}" is "Starfall (2008)"."""
-    return _ID_TAG.sub("", name).strip()
+    """A name without media server apps' tags of its title's ids and edition, or its edition
+    written out: "Starfall (2008) {tmdb-4567}" and "Starfall (2008) Special Edition" are
+    "Starfall (2008)"."""
+    return _EDITION.sub("", _ID_TAG.sub("", name)).strip()
+
+
+def _code(spelled: re.Match[str]) -> str:
+    """The episode code a season and an episode written out stand for: "Series 2 - Episode 1" is
+    "S02E01"."""
+    return f"S{int(spelled['season']):02d}E{int(spelled['episode']):02d}"
 
 
 def _tmdb_id(name: str) -> int | None:

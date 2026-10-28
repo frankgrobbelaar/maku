@@ -152,7 +152,7 @@ class Identifier:
         ("Harbour Line"), and the name is asked for that way. Files whose names give TMDB's id
         ("{tmdb-7206}") are that show or film, looked up by it, unless TMDB has no such one."""
         likely, other = search_order(films_first=group.movie)
-        if by_id := self._by_id(group, likely):
+        if by_id := self._by_id(group, (likely, other)):
             return by_id
         entries: dict[int, Entry] = {}
         ranked: list[Guess] = []
@@ -172,13 +172,18 @@ class Identifier:
                 ranked = guesses(group, found)
         return ranked
 
-    def _by_id(self, group: Group, media: Media) -> list[Guess]:
-        """The show or film whose TMDB id the group's names give, as the one sure guess; none
-        when they give none, or TMDB has no such one."""
+    def _by_id(self, group: Group, order: tuple[Media, Media]) -> list[Guess]:
+        """The show or film whose TMDB id the group's names give, as the one sure guess: of the
+        kind the files look like, else of the other, as an id names no kind (core/identify.py's
+        `tagged`). None when they give none, or no show or film of that number has their
+        names."""
         if group.tmdb_id is None:
             return []
-        found = self._catalog.entry(entry_id(media, group.tmdb_id))
-        return [tagged(found)] if found is not None else []
+        for media in order:
+            found = self._catalog.entry(entry_id(media, group.tmdb_id))
+            if found is not None and (guess := tagged(group, found)) is not None:
+                return [guess]
+        return []
 
     def choose(
         self,

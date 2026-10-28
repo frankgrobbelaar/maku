@@ -39,10 +39,12 @@ behaviour, so swapping parsers later is safe.
   (`Harbour Line S03E08 Finale`), but source words (`WEB`, `BluRay`), codecs and languages never
   are. Dots and underscores are spaces when the name has none of its own.
 - **Episode codes decide.** A name with an episode code is an episode (a special in season 0),
-  whatever its episode's own title says: `Glass Orchard (2012) - S02E07 - Special`, `… - Movie`
-  and `… - Blood Sample` are episodes 7 of season 2. A name that is its code alone (`S01E01 -
-  Pilot.mkv`, `s01e05.720p.hdtv.x264-grp.mkv`) has no title of its own: its folders name the show,
-  and what follows the code is the episode's title.
+  whatever its episode's own title says: `Glass Orchard (2012) - S02E07 - Special`, `… - Movie`,
+  `… - Blood Sample` and `… - Part 2` are episodes 7 of season 2, and the code's season is no
+  part's. A name that is its code alone (`S01E01 - Pilot.mkv`, `s01e05.720p.hdtv.x264-grp.mkv`)
+  has no title of its own: its folders name the show, and what follows the code is the episode's
+  title. A season and an episode written out are read as their code (`_SPELLED_CODE`): `Season 2 -
+  Episode 1`, `Season.2.Episode.1` and British shows' `Series 2 - Episode 1` are `S02E01`.
 - **Daily shows.** A daily show's episode goes by the day it aired: in
   `The.Harbour.Line.2019.01.15.Guest.One.720p.HDTV-GRP` and `The Harbour Line - 2019-01-15 - Guest
   One` the title ends at the date, the episode's title follows it, and the day is kept as `aired`
@@ -65,21 +67,29 @@ behaviour, so swapping parsers later is safe.
 - **Id tags.** Media server apps' tags in a folder's or a file's name (`{tmdb-12345}`,
   `[tmdbid-12345]`, `{imdb-tt1234567}`, `{tvdb-98765}`, `{edition-Director's Cut}`) are no part of
   the title. TMDB's id, from the file's name or the folder that names its show or film, is kept as
-  `tmdb_id`, for identifying it.
+  `tmdb_id`, for identifying it. A film's edition written out after its title or year goes too
+  (`_EDITION`: `Special Edition`, `Special.Extended.Edition`, `Collector's Edition`, `Director's
+  Cut`, `Theatrical Version`), when the end of the name, a bracket, the year or the release's words
+  follow it: its `Special` makes it no special, and a year after it is still the film's. A title
+  that is one (`Director's Cut (2016)`) stays, and so does a show's name an episode follows
+  (`Glass Orchard Special Edition - 05`).
 - **Films.** A film in a folder of its own, named as the folder is (`Starfall (2008)\Starfall
   (2008).mkv`, or Maku's own `… - pt1` for its first part), is that film, the way films are filed,
   whatever its name holds. A film in parts (`CD1`, `CD2`, `Disc 2`, `pt1`, `Part 2` at the end of
   its name: `film_part`) is one film, and the part is no episode and no part of its title; a
   `Part 2` after anything but a film's year may be a title's own (`… - The Long Night Part 2`). A
-  film's title can end in a number, which anitopy takes for an episode's: before the film's year
-  (`Area.51.2015`, `Paper Kites 2 (2003)`), the number is the title's, unless a dash comes before
-  it (`Glass Orchard - 05 (2012)`) or the file is in a season's folder. A series' release that
+  film's title can hold a number, which anitopy takes for an episode's: before the film's year
+  (`Area.51.2015`, `Paper Kites 2 (2003)`, `Paper Kites 2 The Long Way Home (2003)`), the number is
+  the title's, unless a dash comes before it (`Glass Orchard - 05 (2012)`), the file is in a
+  season's folder, or words follow a number written as an episode's is (`Glass Orchard 05 The
+  Well (2012)`). A series' release that
   numbers its films (`The Harbour Line - Movie 02 - Low Tide`) makes each a film titled `The
   Harbour Line: Low Tide`, with `series` The Harbour Line; the release's number counts its own
   films, not TMDB's, so it's left out.
 - **Specials.** `The Harbour Line - Special 05 - The Night Train` is a special of The Harbour Line
-  named The Night Train, which places it among the show's specials by name; season 0 in a name
-  (`S00E03`) or a `Specials` folder is a special too. A show whose name has the word keeps it as
+  named The Night Train, which places it among the show's specials by name, and so is `Quiet Hours
+  - Christmas Special` one named Christmas Special (`Quiet.Hours.Christmas.Special` too, in Quiet
+  Hours' folder); season 0 in a name (`S00E03`) or a `Specials` folder is a special too. A show whose name has the word keeps it as
   its name's: anitopy reads the word each time it's there, so `The Special Ones Special 05` is a
   special (one more than the name holds) and `A Very Special Night (2015)` a film.
 - **Copies and samples.** `(copy)`, ` - Copy` and ` (2)` are removed before parsing and set

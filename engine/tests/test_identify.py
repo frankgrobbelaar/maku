@@ -662,6 +662,81 @@ def test_a_shows_folder_that_gives_tmdbs_id_tells_a_series_from_its_remake(
     assert (title["tmdb_id"], title["year"]) == (4199, 1985)
 
 
+def test_a_tmdb_id_in_a_name_is_the_show_or_film_of_that_number_its_names_fit(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    # TMDB numbers its shows and its films apart, so 7102 is a show's number as well as Starfall
+    # II's. Without its year the name reads like an episode's, but the show numbered 7102 is no
+    # Starfall: the film is the one.
+    library(conn, root, ["Movies/Starfall 2 {tmdb-7102}.mkv"], minutes=124)
+    other = tv_details(7102, "Quiet Waters", (5,), first_aired=date(2003, 1, 6))
+
+    identify(keyed, conn, internet(shows={7102: other}))
+
+    title = conn.execute("SELECT tmdb_type, tmdb_id, name FROM titles").fetchone()
+    assert placed(conn)["Starfall 2 {tmdb-7102}.mkv"][0] == "sure"
+    assert tuple(title) == ("movie", 7102, "Starfall II")
+
+
+def test_a_tmdb_id_whose_show_and_film_are_both_other_titles_is_left_for_a_search(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    # A slip of the id: 7101 is the film Starfall, and a show called Quiet Waters. The name is
+    # searched for instead.
+    library(
+        conn,
+        root,
+        ["TV/The Harbour Line (2019) {tmdb-7101}/Season 01/The Harbour Line - S01E02.mkv"],
+        minutes=45,
+    )
+    other = tv_details(7101, "Quiet Waters", (5,), first_aired=date(2003, 1, 6))
+
+    identify(keyed, conn, internet(shows={7101: other}))
+
+    assert placed(conn)["The Harbour Line - S01E02.mkv"] == (
+        "sure",
+        "The Harbour Line",
+        "series",
+        1,
+        2,
+    )
+
+
+def test_a_special_named_after_its_show_lands_on_the_special_of_its_name(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(
+        conn,
+        root,
+        [
+            "TV/Quiet Hours/Quiet Hours - S01E01.mkv",
+            "TV/Quiet Hours/Quiet Hours - Christmas Special.mkv",
+        ],
+        minutes=30,
+    )
+
+    identify(keyed, conn, internet())
+
+    assert placed(conn)["Quiet Hours - Christmas Special.mkv"] == (
+        "sure",
+        "Quiet Hours",
+        "series",
+        0,
+        1,
+    )
+
+
+def test_a_british_series_and_episode_land_in_that_season(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    name = "Glass Orchard - Series 2 - Episode 1.mkv"
+    library(conn, root, [f"TV/Glass Orchard/Series 2/{name}"], minutes=45)
+
+    identify(keyed, conn, internet())
+
+    assert placed(conn)[name] == ("sure", "Glass Orchard", "series", 2, 1)
+
+
 def test_a_burnt_discs_film_is_offered_but_never_taken(
     keyed: DataPaths, conn: sqlite3.Connection, root: Path
 ):
