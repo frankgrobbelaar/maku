@@ -31,7 +31,7 @@ Maku uses it.
 | Biome | 2.6 | Lint and format for the UI | [react.md](stack/react.md) |
 | Tailwind CSS | 4.3 | Styling, fed by Maku's tokens and their four schemes | [tailwind.md](stack/tailwind.md) |
 | shadcn/ui, Radix | shadcn 4.21, radix-ui 1.8 | Accessible component starting points | [tailwind.md](stack/tailwind.md) |
-| Lucide | 1.61 | Icons | [tailwind.md](stack/tailwind.md) |
+| Lucide | 1.62 | Icons | [tailwind.md](stack/tailwind.md) |
 | Fontsource | 5.3 | Manrope and Geist Mono, bundled for offline use | [tailwind.md](stack/tailwind.md) |
 | Python | 3.14 | The engine's language | [python.md](stack/python.md) |
 | uv | 0.13 | Python, packages, lockfile, running tools | [python.md](stack/python.md) |

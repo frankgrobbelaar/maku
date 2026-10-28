@@ -11,7 +11,7 @@ shows these notes when it offers the update.
 ### Changed
 
 - The engine is built with the newest versions of the libraries it uses: FastAPI 0.162 and
-  Starlette 1.10.
+  Starlette 1.10. The window has Lucide's newest icons, 1.62.
 
 ## 1.1.0 - 2026-10-28
 
