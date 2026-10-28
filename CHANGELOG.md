@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.2.0 - 2026-10-28
+
 ### Added
 
 - Burnt DVDs and Blu-rays copied whole: their files (`VIDEO_TS`, `BDMV\STREAM`) are named by the
