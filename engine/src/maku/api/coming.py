@@ -1,4 +1,4 @@
-"""What's still to come of the library's shows (maku/coming.py): Home's "Coming up"."""
+"""The library's shows by the day their episodes air (maku/coming.py): the Library's "Coming up"."""
 
 from datetime import datetime
 
@@ -12,23 +12,26 @@ router = APIRouter()
 
 
 class ComingEpisode(ApiModel):
-    """A title's next episode, and how many more its list has after it."""
+    """A show's episodes of one season out on one day (one, or a season put out at once), and how
+    many of them the library has."""
 
     title_id: int
     title: str
     kind: TitleKind
     has_poster: bool
-    season: int
-    number: int
-    name: str | None
-    aired: str  # the day it airs
-    later: int  # episodes listed after it
+    season: int  # 0 for its specials
+    number: int  # the first of them
+    last: int  # the last of them: the first, for one
+    name: str | None  # the episode's own, for one
+    aired: str  # the day they air
+    episodes: int
+    held: int  # of them, in the library
 
 
 @router.get("/coming")
 def coming_up(conn: Database) -> list[ComingEpisode]:
-    """Each of the library's titles with an episode airing today or later that the library hasn't
-    got: its next one, the soonest first."""
+    """The episodes of the library's shows out in the last four weeks or listed from today on, by
+    the day they air, each day's saying how many of them the library has."""
     today = datetime.now().astimezone().date()
     return [
         ComingEpisode(
@@ -38,9 +41,11 @@ def coming_up(conn: Database) -> list[ComingEpisode]:
             has_poster=artwork.poster_address(each.poster) is not None,
             season=each.season,
             number=each.number,
+            last=each.last,
             name=each.name,
             aired=each.aired.isoformat(),
-            later=each.later,
+            episodes=each.episodes,
+            held=each.held,
         )
         for each in coming.coming(conn, today)
     ]

@@ -9,6 +9,9 @@ export interface Group<T> {
   key: string;
   heading: string;
   items: T[];
+  /** What comes first under its heading, before its cards: the Library's Coming up, in its
+   * series. */
+  lead?: ReactNode;
 }
 
 /** Whether a list in this order is grouped by type. "Recently added" and "Most missing" look
@@ -58,7 +61,12 @@ export function CardGrid<T>(props: {
 }) {
   const [only, ...more] = props.groups;
   if (only && more.length === 0) {
-    return <Cards items={only.items} keyOf={props.keyOf} card={props.card} />;
+    return (
+      <div className="flex flex-col gap-3">
+        {only.lead}
+        <Cards items={only.items} keyOf={props.keyOf} card={props.card} />
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-7">
@@ -83,6 +91,7 @@ function Section<T>(props: {
           {props.group.items.length}
         </span>
       </h3>
+      {props.group.lead}
       <Cards items={props.group.items} keyOf={props.keyOf} card={props.card} />
     </section>
   );

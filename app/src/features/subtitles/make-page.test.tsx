@@ -245,6 +245,24 @@ describe("MakeSubtitlesPage", () => {
     expect(
       await screen.findByRole("button", { name: "Make subtitles for 4 episodes" }),
     ).toBeEnabled();
+    // Started from Home, it leads back there.
+    const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(trail).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+  });
+
+  it("sits in the Library, under its title, when made for a title", async () => {
+    engine();
+    renderMake();
+
+    const trail = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    expect(within(trail).getByRole("link", { name: "Library" })).toHaveAttribute(
+      "href",
+      "/library",
+    );
+    expect(await within(trail).findByRole("link", { name: "The Harbour Line" })).toHaveAttribute(
+      "href",
+      "/titles/7",
+    );
   });
 
   it("offers Fast where the card hasn't the memory for Best", async () => {

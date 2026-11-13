@@ -123,7 +123,7 @@ maku/
   search.py       the library searched from the title bar: series, films, episodes and videos
   player.py       playing a video inside the window: tickets, the stream, subtitles copied out
   watched.py      where each video stopped, and what's watched, for Continue watching
-  coming.py       each show's next episode still to come, for Coming up, and telling of one out
+  coming.py       the shows' episodes by the day they air, for Coming up, and telling of one out
   checkup.py      the health check: every video test-played overnight, a few at a time
   web.py          asking web services for JSON: timeouts, rate limits, errors in words
   tmdb.py         TMDB: searches, details, episode lists, collections and artwork, with the
@@ -181,16 +181,16 @@ list doesn't name is looked up by its own name, and placed only when TMDB keeps 
 one-off show. Without a TMDB key nothing is looked up: the videos are read and wait, and the
 scan's note says Maku needs the key (`NoKeyError`). The films TMDB keeps in one collection make a
 franchise (`maku/core/franchise.py`; the app says "collection"), named as TMDB names the
-collection: Home shows a collection of several films as one card with a page of its own, and a
+collection: the Library shows a collection of several films as one card with its own page, and a
 series always stands alone, as TMDB ties no show to another. The rest of each collection, its
 films whether the library has them or not, is looked up in the background (`maku/franchises.py`,
 at most 200 entries a franchise) and kept in `entries`, so a collection's page can show what it
 lacks ("Missing films"): what no video is matched to, and no show the library has keeps among its
 specials. Only the links of entries the library holds tie its titles together, so what's looked
-up beyond them never joins two cards on Home. A file Maku isn't sure about waits for the owner on
-"Which title is this?", whose choice is pinned (an episode Maku can't place asks for its number),
-or who sets it aside as not a series or film, pinned too; the files set aside are listed, and one
-taken back waits again, looked up afresh at the next scan (`Identifier.unignore`). Offline,
+up beyond them never joins two cards in the Library. A file Maku isn't sure about waits for the
+owner on "Which title is this?", whose choice is pinned (an episode Maku can't place asks for its
+number), or who sets it aside as not a series or film, pinned too; the files set aside are listed,
+and one taken back waits again, looked up afresh at the next scan (`Identifier.unignore`). Offline,
 identification waits for the next scan and the scan says so. A title's match can be changed for
 all its files at once (`Identifier.rematch`), chosen for its first episode: files of that kind
 take the owner's choice, the others keep theirs (a series' specials stay specials), and any that
@@ -389,10 +389,15 @@ latest video that counts (stopped part way, or watched): stopped part way, it's 
 watched, the next one not watched yet is up next, in the order a title's page plays them. A
 title can be left out of it (`DELETE /continue/{id}`) till one of its videos plays again.
 
-Home's "Coming up" (`maku/coming.py`, `GET /coming`) is each title's next episode airing today
-or later that no video of the library's covers, from the episode lists Maku keeps (asked for
-hourly while a show airs). On the day one airs, the watcher tells the owner as it looks around
-(`Watcher.tell_aired`, one notification for the day's), and `aired_told` keeps each told once.
+The Library's "Coming up" (`maku/coming.py`, `GET /coming`) is the library's shows by the day
+their episodes air, from the episode lists Maku keeps (asked for hourly while a show airs): the
+last four weeks, and all that's listed from today on (the soonest hundred, the last day of them
+whole, and each show's next however far off). A show's episodes of one season out one after
+another on one day are one, a season put out at once among them, saying how many of them a video
+of the library's holds; the window asks again after every scan, match and tidy-up. On the day
+one airs that the library hasn't got, the watcher tells the owner as it looks around
+(`Watcher.tell_aired`, one notification for the day's, leading to its title or, for several, to
+the Library), and `aired_told` keeps each told once.
 
 The health check (`maku/checkup.py`, run by `maku/care.py`) test-plays each video at night while
 the queue has no job: a few seconds at three points, its picture decoded as a player would from

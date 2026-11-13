@@ -8,6 +8,7 @@ import { QueuePage } from "@/features/convert/queue-page";
 import { FranchisePage } from "@/features/franchise/franchise-page";
 import { HistoryPage } from "@/features/history/history-page";
 import { HomePage } from "@/features/home/home-page";
+import { LibraryPage } from "@/features/library/library-page";
 import { MatchPage } from "@/features/match/match-page";
 import { ScanPage } from "@/features/scan/scan-page";
 import { SettingsPage } from "@/features/settings/settings-page";
@@ -35,6 +36,7 @@ export function App() {
             />
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
+              <Route path="/library" element={<LibraryPage />} />
               <Route path="/scan" element={<ScanPage />} />
               <Route path="/match" element={<MatchPage />} />
               <Route path="/titles/:id" element={<TitlePage />} />

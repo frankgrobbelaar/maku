@@ -325,6 +325,7 @@ const CHANGED_ON_ITS_OWN = [
   "/library",
   "/titles",
   "/franchises",
+  "/coming",
   "/convert",
   "/subtitles",
 ];
@@ -365,6 +366,7 @@ export function useScan() {
         "/folders",
         "/titles",
         "/franchises",
+        "/coming",
         "/review",
         "/tidy",
         "/convert",
@@ -906,23 +908,30 @@ export interface LibraryGlance {
 
 export const useLibraryGlance = () => useEngineQuery<LibraryGlance>("/library/glance");
 
-/** A title's next episode, still to come, and how many more its list has after it. */
+/** A show's episodes of one season out on one day (one, or a season put out at once), and how
+ * many of them the library has. */
 export interface ComingEpisode {
   titleId: number;
   title: string;
   kind: TitleKind;
   hasPoster: boolean;
-  /** 0 for one of its specials. */
+  /** 0 for its specials. */
   season: number;
+  /** The first of them. */
   number: number;
+  /** The last of them: the first, for one. */
+  last: number;
+  /** The episode's own, for one. */
   name: string | null;
-  /** The day it airs. */
+  /** The day they air. */
   aired: string;
-  /** Episodes listed after it. */
-  later: number;
+  episodes: number;
+  /** Of them, in the library. */
+  held: number;
 }
 
-/** Home's "Coming up": the soonest first. */
+/** The Library's "Coming up": the library's shows by the day their episodes air, the last four
+ * weeks and all that's listed ahead. */
 export const useComing = () => useEngineQuery<ComingEpisode[]>("/coming");
 
 /** Home's "Continue watching": the latest played first. */
@@ -1091,7 +1100,7 @@ export interface FranchiseSummary extends FranchiseRef {
   titles: TitleSummary[];
 }
 
-/** Every franchise with its titles, in `sort` order: Home's shelf. */
+/** Every franchise with its titles, in `sort` order: the Library's shelf. */
 export const useFranchises = (sort: TitleSort = "released") =>
   useEngineQuery<FranchiseSummary[]>(`/franchises?sort=${sort}`, undefined, true, true);
 /** The franchise a title belongs to (any of its titles finds it), its titles in `sort` order. */
@@ -1208,7 +1217,15 @@ export interface Chosen {
  * or with `title` instead of `also`, a whole title's new match (each file keeps its kind).
  */
 export const useChooseMatch = () =>
-  useEngineAction<Chosen>(["/review", "/titles", "/franchises", "/scan", "/library", "/tidy"]);
+  useEngineAction<Chosen>([
+    "/review",
+    "/titles",
+    "/franchises",
+    "/coming",
+    "/scan",
+    "/library",
+    "/tidy",
+  ]);
 /** Not a series or film: `ignore.mutate({ path: "/review/7/ignore" })`. */
 export const useIgnoreFile = () => useEngineAction<void>(["/review", "/scan", "/tidy"]);
 
@@ -1452,6 +1469,7 @@ const TIDIED = [
   "/history",
   "/titles",
   "/franchises",
+  "/coming",
   "/library",
   "/review",
   "/convert",

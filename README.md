@@ -19,7 +19,7 @@ have: Maku never finds, downloads or shares video.
   <br>
 </p>
 
-![Maku's home: your library by picture, at a glance, and what's on next](docs/readme/home.png)
+![Maku's home: your library by picture and language, at a glance, and what you're part way through](docs/readme/home.png)
 
 ## Made for real libraries
 
@@ -46,7 +46,10 @@ this?", with stills and a quick look at the file.
 Every title gets a page: what it's about, its seasons, an episode map, the episodes that aired
 that you don't have, and a gap report beside the files. Films TMDB keeps together are one
 collection, with the films you don't have yet in their places, and Maku keeps watching for new
-ones. Home lists the episodes still to come of the shows you have, by the day they air.
+ones. The Library lays the episodes of your shows along the days they air: the last four weeks,
+so you see what you've missed, and all that's still to come, each saying whether you have it.
+
+![The Library: your series, with the days their episodes air along the top](docs/readme/library.png)
 
 ![A collection's page, the films you're missing in their places](docs/readme/collection.png)
 

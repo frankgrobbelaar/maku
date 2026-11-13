@@ -184,8 +184,8 @@ def list_titles(conn: Database, sort: Sort = "released") -> list[TitleSummary]:
 
 @router.get("/franchises")
 def list_franchises(conn: Database, sort: Sort = "released") -> list[FranchiseSummary]:
-    """Every franchise with its titles, oldest release first unless asked otherwise: Home's
-    shelf. A title on its own is a franchise of one."""
+    """Every franchise with its titles, oldest release first unless asked otherwise: the
+    Library's shelf. A title on its own is a franchise of one."""
     return [_franchise(found) for found in titles.franchises(conn, _today(), sort)]
 
 

@@ -46,9 +46,13 @@ describe("NavRail", () => {
   it.each([
     ["/", "Home"],
     ["/scan", "Home"],
-    ["/franchises/1", "Home"],
-    ["/titles/7", "Home"],
-    ["/match?title=7", "Home"],
+    ["/subtitles", "Home"],
+    ["/library", "Library"],
+    ["/library?sort=missing", "Library"],
+    ["/franchises/1", "Library"],
+    ["/titles/7", "Library"],
+    ["/match?title=7", "Library"],
+    ["/subtitles?title=7&season=1", "Library"],
     ["/match", "Tidy up"],
     ["/tidy", "Tidy up"],
     ["/convert", "Convert"],
@@ -117,5 +121,24 @@ describe("NavRail badges", () => {
     const convert = screen.getByRole("link", { name: "Convert, converting, 63% done" });
     expect(within(convert).getByText("63%").parentElement).toHaveClass("bg-accent/18");
     expect(screen.getByRole("link", { name: "History" })).toBeInTheDocument(); // no badge
+  });
+
+  it("puts the Library right under Home", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <NavRail />
+      </MemoryRouter>,
+    );
+
+    const tiles = screen.getAllByRole("link");
+    expect(tiles.map((tile) => tile.textContent)).toEqual([
+      "Home",
+      "Library",
+      "Tidy up",
+      "Convert",
+      "History",
+      "Settings",
+    ]);
+    expect(tiles[1]).toHaveAttribute("href", "/library");
   });
 });

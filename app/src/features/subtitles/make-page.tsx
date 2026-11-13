@@ -2,7 +2,7 @@ import { Captions, Download } from "lucide-react";
 import { RadioGroup } from "radix-ui";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Breadcrumb, LIBRARY } from "@/components/breadcrumb";
+import { Breadcrumb, HOME, LIBRARY } from "@/components/breadcrumb";
 import { CheckBox } from "@/components/check-box";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, PanelSkeleton } from "@/components/skeleton";
@@ -92,7 +92,12 @@ export function MakeSubtitlesPage() {
   const name = mine[0]?.title ?? null;
   const scopes = scopesFor(all, mine, name, season, ticked);
   const chosen = scopes.find((each) => each.scope === scope) ?? scopes[0];
-  const trail = titleId && name ? [LIBRARY, { label: name, to: `/titles/${titleId}` }] : [LIBRARY];
+  // A title's subtitles sit in the Library under it; the whole library's are asked for from Home.
+  const trail = !titleId
+    ? [HOME]
+    : name
+      ? [LIBRARY, { label: name, to: `/titles/${titleId}` }]
+      : [LIBRARY];
   const top = <Breadcrumb trail={trail} current="Make English subtitles" />;
 
   if (!options.data || !chosen) {

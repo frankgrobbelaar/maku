@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlayerLayer } from "@/features/player/player";
 import { PlayerProvider } from "@/features/player/player-context";
@@ -87,21 +87,6 @@ const STARFALL_II: TitleSummary = {
   year: 2017,
   released: "2017-05-19",
 };
-const ASCENT: TitleSummary = {
-  ...STARFALL,
-  id: 6,
-  name: "Starfall: Ascent",
-  year: 2021,
-  released: "2021-12-17",
-};
-/** A film on its own, in no collection. */
-const NORTHWIND: TitleSummary = {
-  ...STARFALL,
-  id: 4,
-  name: "Northwind",
-  year: 2009,
-  released: "2009-02-13",
-};
 const STARFALL_COLLECTION = franchiseOf([STARFALL, STARFALL_II], "The Starfall Collection");
 
 /** The engine's answers for a library that's empty and already set up. */
@@ -141,6 +126,7 @@ function renderHome(engine: EngineStatus) {
               <Route path="/match" element={<p>Match</p>} />
               <Route path="/titles/:id" element={<p>A title</p>} />
               <Route path="/franchises/:id" element={<p>A collection</p>} />
+              <Route path="/library" element={<Library />} />
               <Route path="/history" element={<p>History</p>} />
               <Route path="/subtitles" element={<p>Making subtitles</p>} />
               <Route path="/settings/:section" element={<p>Settings</p>} />
@@ -151,6 +137,12 @@ function renderHome(engine: EngineStatus) {
       </EngineProvider>
     </QueryClientProvider>,
   );
+}
+
+/** The Library, standing in, saying the address it was opened at. */
+function Library() {
+  const { search } = useLocation();
+  return <p>The Library, {search}</p>;
 }
 
 describe("HomePage", () => {
@@ -286,7 +278,7 @@ describe("HomePage", () => {
     expect(screen.getByText("1 file couldn't be read.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Scan again" })).toBeEnabled();
     expect(screen.getByText("100%")).toBeInTheDocument(); // every one of them SD
-    // A summary at the top, before what needs the owner (and the shelf after that).
+    // A summary at the top, before what needs the owner.
     const attention = await screen.findByRole("heading", { name: "Needs your attention" });
     expect(
       pictures.compareDocumentPosition(attention) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -483,48 +475,6 @@ describe("HomePage", () => {
       "href",
       "/titles/1",
     );
-  });
-
-  it("lists each show's next episode still to come, the soonest first", async () => {
-    const day = (from: number) => {
-      const when = new Date();
-      when.setDate(when.getDate() + from);
-      return `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(
-        when.getDate(),
-      ).padStart(2, "0")}`;
-    };
-    const next = (titleId: number, title: string, from: number, later = 0) => ({
-      titleId,
-      title,
-      kind: "series",
-      hasPoster: false,
-      season: 1,
-      number: 5,
-      name: "The Café at Dawn",
-      aired: day(from),
-      later,
-    });
-    engineWith({
-      "/folders": [FOLDER],
-      "/library": { ...NO_LIBRARY, folders: 1, files: 3, size: 407_000_000, sd: 3 },
-      "/coming": [
-        next(1, "The Harbour Line", 0, 7),
-        next(2, "Lantern Street", 1),
-        ...[3, 4, 5, 6, 7].map((id) => next(id, `Show ${id}`, 9)),
-      ],
-    });
-    renderHome(READY);
-
-    const coming = await screen.findByRole("region", { name: "Coming up" });
-    const rows = within(coming).getAllByRole("listitem");
-    expect(rows).toHaveLength(5);
-    expect(rows[0]).toHaveTextContent(
-      /^Today.*The Harbour LineS01E05 · The Café at Dawn7 more listed$/,
-    );
-    expect(rows[1]).toHaveTextContent("Tomorrow");
-    expect(within(rows[0] as HTMLElement).getByRole("link")).toHaveAttribute("href", "/titles/1");
-    within(coming).getByRole("button", { name: "Show all 7" }).click();
-    await waitFor(() => expect(within(coming).getAllByRole("listitem")).toHaveLength(7));
   });
 
   it("says what the videos can be heard and read in, and leads to making English subtitles", async () => {
@@ -769,8 +719,8 @@ describe("HomePage", () => {
     expect(screen.queryByRole("button", { name: "Copy details" })).not.toBeInTheDocument();
   });
 
-  it("lists the series and films oldest release first, each saying what it is", async () => {
-    const fetch = engineWith({
+  it("is Home, and counts the titles by kind, leaving the shelf to the Library", async () => {
+    engineWith({
       "/folders": [FOLDER],
       "/library": { ...NO_LIBRARY, folders: 1, files: 314, size: 9e10 },
       "/scan": { ...NO_SCAN, state: "done", stage: "done" },
@@ -779,101 +729,32 @@ describe("HomePage", () => {
         STARFALL_COLLECTION,
         franchiseOf([GLASS_ORCHARD]),
       ],
+      "/coming": [],
     });
     renderHome(READY);
 
-    expect(await screen.findByRole("heading", { name: "Series and films" })).toBeInTheDocument();
-    expect(screen.getByText("3 on the shelf · by type, oldest release first")).toBeInTheDocument();
-    expect(screen.getByText("TV series · 2004 · 291 episodes")).toBeInTheDocument();
-    expect(screen.getByText("4 missing")).toBeInTheDocument();
-    expect(screen.getByText("287 of 291 · 99%")).toBeInTheDocument();
-    expect(screen.getByText("TV series · 2018 · 26 episodes")).toBeInTheDocument();
-    expect(screen.getByText("26 of 26 · complete")).toBeInTheDocument();
-    expect(screen.getByText("Collection · 2 movies")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Home");
     // The titles by kind, a collection's films each counted.
     expect(
-      screen.getByText("2 series · 2 movies · 314 videos · 90.0 GB · 1 folder"),
+      await screen.findByText("2 series · 2 movies · 314 videos · 90.0 GB · 1 folder"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Release date" })).toBeChecked();
-    expect(
-      fetch.mock.calls.some(([input]) => String(input).endsWith("/franchises?sort=released")),
-    ).toBe(true);
-
-    screen.getByRole("radio", { name: "Name" }).click();
-    await waitFor(() =>
-      expect(
-        fetch.mock.calls.some(([input]) => String(input).endsWith("/franchises?sort=name")),
-      ).toBe(true),
-    );
-
-    (await screen.findByRole("link", { name: /The Starfall Collection/ })).click();
-    expect(await screen.findByText("A collection")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /The Starfall Collection/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("searchbox", { name: "Search the shelf" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Coming up" })).not.toBeInTheDocument();
   });
 
-  it("lists collections first, then what stands on its own, by type", async () => {
+  it("opens the Library most missing first from the episodes missing", async () => {
     engineWith({
       "/folders": [FOLDER],
-      "/library": { ...NO_LIBRARY, folders: 1, files: 314, size: 9e10 },
+      "/library": { ...NO_LIBRARY, folders: 1, files: 314 },
       "/scan": { ...NO_SCAN, state: "done", stage: "done" },
-      "/franchises": [franchiseOf([NORTHWIND]), STARFALL_COLLECTION, franchiseOf([GLASS_ORCHARD])],
+      "/franchises": [franchiseOf([HARBOUR_LINE]), franchiseOf([GLASS_ORCHARD])],
     });
     renderHome(READY);
 
-    const [collections, series, movies] = await screen.findAllByRole("heading", { level: 3 });
+    (await screen.findByRole("button", { name: /4 episodes missing/ })).click();
 
-    expect([collections, series, movies].map((heading) => heading?.textContent)).toEqual([
-      "Collections 1",
-      "Series 1",
-      "Movies 1",
-    ]);
-  });
-
-  it("finds a collection by its name or any of its films', and says when nothing is", async () => {
-    engineWith({
-      "/folders": [FOLDER],
-      "/library": { ...NO_LIBRARY, folders: 1, files: 314, size: 9e10 },
-      "/scan": { ...NO_SCAN, state: "done", stage: "done" },
-      "/franchises": [
-        franchiseOf([STARFALL, ASCENT], "The Starfall Collection"),
-        franchiseOf([GLASS_ORCHARD]),
-      ],
-    });
-    renderHome(READY);
-
-    const search = await screen.findByRole("searchbox", { name: "Search the shelf" });
-    expect(search).toHaveAttribute("placeholder", "Search the shelf");
-    fireEvent.change(search, { target: { value: "ascent" } });
-
-    expect(
-      await screen.findByText("1 of 2 on the shelf · by type, oldest release first"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /The Starfall Collection/ })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Glass Orchard/ })).not.toBeInTheDocument();
-
-    fireEvent.change(search, { target: { value: "Lantern " } });
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Nothing on the shelf goes by “Lantern”.",
-    );
-
-    fireEvent.keyDown(search, { key: "Escape" });
-    expect(
-      await screen.findByText("2 on the shelf · by type, oldest release first"),
-    ).toBeInTheDocument();
-    expect(search).toHaveValue("");
-  });
-
-  it("leads a title on its own to its page", async () => {
-    engineWith({
-      "/folders": [FOLDER],
-      "/library": { ...NO_LIBRARY, folders: 1, files: 287, size: 9e10 },
-      "/scan": { ...NO_SCAN, state: "done", stage: "done" },
-      "/franchises": [franchiseOf([HARBOUR_LINE])],
-    });
-    renderHome(READY);
-
-    (await screen.findByRole("link", { name: /The Harbour Line/ })).click();
-
-    expect(await screen.findByText("A title")).toBeInTheDocument();
+    expect(await screen.findByText("The Library, ?sort=missing")).toBeInTheDocument();
   });
 
   it("says what needs attention, and leads to it", async () => {

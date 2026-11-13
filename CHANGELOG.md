@@ -8,6 +8,27 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+
+- A Library, right under Home on the left, holds your series and films. Its search and its order
+  are still there when you come back to it.
+- Coming up, in the Library under your series, is a strip you scroll sideways, opening at today:
+  the episodes of your shows from the last four weeks to the left, so you can see what you've
+  missed, and all that's listed ahead to the right. Each says whether it's in your library,
+  missing or still to air, and a season put out on one day is one card saying how much of it you
+  have.
+
+### Changed
+
+- Home is shorter and called Home: the library in numbers, what you're part way through and what
+  needs you. "Most missing first" opens the Library in that order, a title's or collection's page
+  leads back to the Library, and the note for several episodes out today opens Coming up.
+
+### Fixed
+
+- Making English subtitles for the whole library lights Home on the left, where it's started
+  from; before, no place was lit.
+
 ## 1.2.0 - 2026-10-28
 
 ### Changed

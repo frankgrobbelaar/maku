@@ -1,41 +1,37 @@
 import { FolderPlus } from "lucide-react";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router";
+import { AddFirstFolder, useAddAndScan } from "@/components/add-folder";
 import { EmptyState, ShelfIllustration } from "@/components/empty-state";
 import { EngineProblem } from "@/components/engine-problem";
-import { useAddressSearch } from "@/components/search-field";
 import { Loading, TilesSkeleton } from "@/components/skeleton";
 import { NoTmdbKey } from "@/components/tmdb-key";
 import { Button } from "@/components/ui/button";
-import { pickFolder } from "@/lib/dialogs";
 import {
   type FranchiseSummary,
   type Hearable,
   type Library,
   type Scan,
   type Settings,
-  type TitleSort,
-  useAddFolder,
   useCheckup,
   useEngine,
   useFolders,
   useFranchises,
   useLibrary,
   useScan,
-  useScanAction,
   useSettings,
   useSubtitleOptions,
 } from "@/lib/engine";
 import { dayAndTime, isEnglish, scanChanges } from "@/lib/format";
 import { KIND_ORDER, kindCount } from "@/lib/kinds";
 import { Attention } from "./attention";
-import { ComingUp } from "./coming-up";
 import { ContinueWatching } from "./continue-watching";
 import { Glance } from "./glance";
 import { Recovered } from "./recovered";
-import { Shelf } from "./shelf";
 import { UnplayedDialog } from "./unplayed";
 
+/** Home: the library in numbers, what's part watched, and what needs the owner. The series and
+ * films themselves, and what's coming up of them, are the Library's. */
 export function HomePage() {
   const engine = useEngine();
   const settings = useSettings();
@@ -45,9 +41,6 @@ export function HomePage() {
   const franchises = useFranchises();
   const heard = useSubtitleOptions();
   const navigate = useNavigate();
-  const [sort, setSort] = useState<TitleSort>("released");
-  const [query, setQuery] = useAddressSearch();
-  const [allComing, setAllComing] = useState(false);
   const checkup = useCheckup();
   const [unplayed, setUnplayed] = useState(false);
 
@@ -62,7 +55,7 @@ export function HomePage() {
     <>
       <header className="page-top flex animate-fade-up flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
-          <h1 className="type-title">Library</h1>
+          <h1 className="type-title">Home</h1>
           <p className="text-14 text-fg-muted">
             {empty
               ? "No folders yet."
@@ -97,7 +90,6 @@ export function HomePage() {
       {working && !empty && videos.length > 0 && <Languages videos={videos} />}
       {working && library.data && !empty && <Glance />}
       {working && library.data && !empty && <ContinueWatching />}
-      {working && library.data && !empty && <ComingUp all={allComing} onAll={setAllComing} />}
       {working && scan.data && library.data && !empty && (
         <Attention
           waiting={scan.data.waiting}
@@ -111,14 +103,9 @@ export function HomePage() {
           noEnglishIn={new Set(withoutEnglish.map((video) => video.titleId)).size}
           onSubtitles={() => void navigate("/subtitles")}
           onMatch={() => void navigate("/match")}
-          onMissing={() => {
-            setSort("missing");
-            setQuery("");
-            document.getElementById("shelf")?.scrollIntoView({ behavior: "smooth" });
-          }}
+          onMissing={() => void navigate("/library?sort=missing")}
         />
       )}
-      {working && !empty && <Shelf sort={sort} onSort={setSort} query={query} onQuery={setQuery} />}
       <UnplayedDialog open={unplayed} onClose={() => setUnplayed(false)} />
     </>
   );
@@ -162,51 +149,6 @@ function ScanButtons({ scan }: { scan: Scan }) {
           {scan.added !== null && scan.gone !== null && ` · ${scanChanges(scan.added, scan.gone)}`}
         </span>
       )}
-      {(add.isError || action.isError) && (
-        <p role="alert" className="text-13 text-broken-fg">
-          {(add.error ?? action.error)?.message}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Scanning again, and adding a folder, which a scan of it follows: by the page's title, and on
- * the empty shelf once setup is done (a PC with no videos yet skips its folders). */
-function useAddAndScan() {
-  const navigate = useNavigate();
-  const action = useScanAction();
-  const add = useAddFolder();
-  const [picking, setPicking] = useState(false);
-
-  const rescan = () =>
-    action.mutate({ path: "/scan" }, { onSuccess: () => void navigate("/scan") });
-
-  async function addFolder() {
-    setPicking(true);
-    try {
-      const path = await pickFolder("Choose a folder with series or films in it");
-      if (path) add.mutate({ path: "/folders", body: { path } }, { onSuccess: rescan });
-    } finally {
-      setPicking(false);
-    }
-  }
-
-  return { action, add, picking, rescan, addFolder };
-}
-
-/** The empty shelf's "Add a folder": the folder, then its scan. */
-function AddFirstFolder() {
-  const { action, add, picking, addFolder } = useAddAndScan();
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <Button
-        variant="primary"
-        disabled={picking || add.isPending || action.isPending}
-        onClick={() => void addFolder()}
-      >
-        Add a folder
-      </Button>
       {(add.isError || action.isError) && (
         <p role="alert" className="text-13 text-broken-fg">
           {(add.error ?? action.error)?.message}

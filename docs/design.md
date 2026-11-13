@@ -34,7 +34,8 @@ progress. And no struggling with small things: every error, empty state and reco
 6. **Fits every window size.** Compact under 900 px, standard 900 to 1440, wide above. Layouts
    reflow on their own: the nav rail folds into a row on top, panels stack, grids change columns.
    Only the page scrolls: the nav rail and the page's top (`page-top`: its title or breadcrumb)
-   stay where they are.
+   stay where they are. The one exception is the Library's Coming up, a strip that scrolls
+   sideways through the days, as the owner asked.
 7. **Light and dark, in every scheme.** Each scheme's dark is near-black and its light near-white,
    both tinted by its colour; in light, panels lift with a soft shadow of the scheme's own ink.
    Maku is light or dark as Windows is, unless the owner picks one in Settings › General ("Light

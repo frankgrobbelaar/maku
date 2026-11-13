@@ -151,6 +151,18 @@ Everything decided so far. Don't ask again; change only with the owner.
   own, named as TMDB names the collection ("The Starfall Collection"), with "Missing films" (the
   collection's films the library lacks, looked up in the background, a coming one marked so). A
   series stands alone. Kinds are "TV series" and "Movie".
+- **Home and the Library** (the owner, 2026-11-13: "The home page feels slightly too long. I want
+  us to move the Library and coming up next to a new sidebar tab under home called Library"):
+  Home, titled "Home", keeps the library in numbers, Continue watching and what needs the owner.
+  The **Library**, the nav rail's second place, is the shelf of series and films (its search and
+  order kept in its address), with **Coming up** under the series' heading (at the top in an
+  order that looks across types). Coming up is a strip that scrolls sideways (the owner: "it would
+  be better for us to do a horizontal scroll ... we can also scroll back in time to see what we
+  have missed"), opening at today: the last four weeks to its left and all that's listed ahead to
+  its right, a show's episodes on a day one card saying whether they're in the library ("it
+  would be great on here to see somehow if the series has been downloaded"), missing or still to
+  air; a season put out at once is one card ("5 of 8 in your library"). Titles and collections
+  sit in the Library; the scan and subtitles for the whole library sit in Home.
 - Everything else Kura does stays, for series and movies: the gap analysis per series (a Markdown
   report), clean names (Plex's layout, never named in the app: "Clean names" or "Keep my names"),
   tidy folders with undo, quarantine, the queue with nights only, English subtitles made on the PC
@@ -202,7 +214,9 @@ Everything decided so far. Don't ask again; change only with the owner.
   `app/src/components/maku-logo.tsx`), Claude's design at the owner's word ("I will let you
   choose").
 - Canvases: [Maku Design](https://claude.ai/artifact/1pVuwSLdjXnp4gPJygp8B8) (the names and the
-  schemes). Kura's canvases are the source for every screen's layout.
+  schemes) and [Maku Library tab](https://claude.ai/artifact/TDGET6MZqsV9xiFEea6mYv) (Home and
+  the Library, the owner's "That looks really good, go for it", 2026-11-13). Kura's canvases are
+  the source for every other screen's layout.
 
 **Architecture**
 - As Kura: Tauri 2 shell, React + Tailwind + shadcn/ui UI, Python engine sidecar built with

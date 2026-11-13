@@ -601,7 +601,7 @@
     "/franchises": {
       "get": {
         "summary": "List Franchises",
-        "description": "Every franchise with its titles, oldest release first unless asked otherwise: Home's\nshelf. A title on its own is a franchise of one.",
+        "description": "Every franchise with its titles, oldest release first unless asked otherwise: the\nLibrary's shelf. A title on its own is a franchise of one.",
         "operationId": "list_franchises_franchises_get",
         "security": [
           {
@@ -1378,7 +1378,7 @@
     "/coming": {
       "get": {
         "summary": "Coming Up",
-        "description": "Each of the library's titles with an episode airing today or later that the library hasn't\ngot: its next one, the soonest first.",
+        "description": "The episodes of the library's shows out in the last four weeks or listed from today on, by\nthe day they air, each day's saying how many of them the library has.",
         "operationId": "coming_up_coming_get",
         "responses": {
           "200": {
@@ -4228,6 +4228,10 @@
             "type": "integer",
             "title": "Number"
           },
+          "last": {
+            "type": "integer",
+            "title": "Last"
+          },
           "name": {
             "anyOf": [
               {
@@ -4243,9 +4247,13 @@
             "type": "string",
             "title": "Aired"
           },
-          "later": {
+          "episodes": {
             "type": "integer",
-            "title": "Later"
+            "title": "Episodes"
+          },
+          "held": {
+            "type": "integer",
+            "title": "Held"
           }
         },
         "type": "object",
@@ -4256,12 +4264,14 @@
           "hasPoster",
           "season",
           "number",
+          "last",
           "name",
           "aired",
-          "later"
+          "episodes",
+          "held"
         ],
         "title": "ComingEpisode",
-        "description": "A title's next episode, and how many more its list has after it."
+        "description": "A show's episodes of one season out on one day (one, or a season put out at once), and how\nmany of them the library has."
       },
       "Compared": {
         "properties": {
