@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 1.3.1 - 2026-11-15
+
 ### Fixed
 - "Which title is this?" asks for an episode's season as well as its number, both starting as
   the file's name gives them. Change either and the video goes exactly there, so an episode
