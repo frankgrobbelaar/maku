@@ -172,6 +172,43 @@ def test_a_film_chosen_for_a_file_is_its_own_title(
     assert client.get(f"/titles/{answer.json()['titleId']}").json()["name"] == "Northern Lights"
 
 
+def test_the_owner_gives_the_season_with_the_episode(
+    client: TestClient, waiting: FakeWeb, conn: sqlite3.Connection
+):
+    [first, *_] = client.get("/review").json()
+    choice = {"entryId": 4101, "kind": "episode", "episode": 8}
+
+    unsure = client.post(f"/review/{first['id']}", json={**choice, "season": 0})
+    answer = client.post(f"/review/{first['id']}", json={**choice, "season": 2})
+
+    assert unsure.status_code == 422  # season 0 holds the specials: a special says so
+    assert answer.json()["placed"] == 1
+    row = conn.execute("SELECT season, episode FROM files WHERE id = ?", (first["id"],)).fetchone()
+    assert tuple(row) == (2, 8)
+
+
+def test_a_titles_new_match_takes_the_season_given_for_the_file_shown_alone(
+    client: TestClient, paths: DataPaths, conn: sqlite3.Connection, root: Path, web: FakeWeb
+):
+    with_key(paths)
+    library(conn, root, [f"Orchard/Glass Orchard - S01E0{n}.mkv" for n in (1, 2)], 45)
+    identify(paths, conn, internet())
+    web.answers.update(internet().answers)
+    [orchard] = [row[0] for row in conn.execute("SELECT id FROM titles")]
+    [first] = client.get("/review", params={"title": orchard}).json()
+
+    client.post(
+        f"/review/{first['id']}",
+        json={"entryId": 4101, "kind": "episode", "title": orchard, "season": 2, "episode": 1},
+    )
+
+    rows = conn.execute("SELECT path, season, episode FROM files ORDER BY path")
+    assert [(Path(row[0]).name, row[1], row[2]) for row in rows] == [
+        ("Glass Orchard - S01E01.mkv", 2, 1),
+        ("Glass Orchard - S01E02.mkv", 1, 2),  # the rest of the title by their names, as before
+    ]
+
+
 def test_a_titles_match_changes_for_all_its_files_at_once(
     client: TestClient, paths: DataPaths, conn: sqlite3.Connection, root: Path, web: FakeWeb
 ):

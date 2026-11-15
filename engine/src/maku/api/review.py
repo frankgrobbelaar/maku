@@ -66,6 +66,10 @@ class Choice(ApiModel):
     also: list[int] = Field(default_factory=list[int])
     # The file's number, when its name has none Maku can use.
     episode: int | None = None
+    # The season the owner says it's in, with `episode` (or its name's number): where it goes
+    # among the show's seasons, and so do the files of `also` whose names say no season. Season
+    # 0 holds the specials, which the kind says.
+    season: int | None = Field(default=None, ge=1)
     # The title whose match this changes, for every file of it (instead of `also`): the files
     # of this one's kind take `kind`, the others keep theirs.
     title: int | None = None
@@ -133,7 +137,13 @@ def choose(
     try:
         if body.title is not None:
             done = identifier.rematch(
-                conn, body.title, file_id, body.entry_id, Kind(body.kind), episode=body.episode
+                conn,
+                body.title,
+                file_id,
+                body.entry_id,
+                Kind(body.kind),
+                episode=body.episode,
+                season=body.season,
             )
         else:
             placed = identifier.choose(
@@ -143,6 +153,7 @@ def choose(
                 Kind(body.kind),
                 also=body.also,
                 episode=body.episode,
+                season=body.season,
             )
             done = Placed(placed, 0)
     except UnplacedError as error:

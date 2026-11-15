@@ -381,6 +381,53 @@ def test_the_owner_says_which_episode_when_its_name_doesnt(
     assert placed(conn)["VTS_01_1.VOB"] == ("sure", "The Harbour Line", "series", 2, 2)
 
 
+def test_the_owner_says_which_season_an_episode_is_in(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    names = ["[subs] ep08 final.mkv", "[subs] ep09 final.mkv", "[subs] S01E05 final.mkv"]
+    library(conn, root, [f"Downloads/{name}" for name in names])
+    identify(keyed, conn, internet())
+    assert all(placed(conn)[name][0] != "sure" for name in names)
+    found = ids(conn)
+    owner = Identifier(keyed, internet(), now=lambda: NOW)
+
+    count = owner.choose(
+        conn,
+        found["[subs] ep08 final.mkv"],
+        4101,
+        Kind.EPISODE,
+        also=[found["[subs] ep09 final.mkv"], found["[subs] S01E05 final.mkv"]],
+        season=2,
+    )
+
+    assert count == 3
+    now = placed(conn)
+    assert now["[subs] ep08 final.mkv"] == ("sure", "The Harbour Line", "series", 2, 8)
+    # Its look-alike says no season either: it's in the same one. The other says its own.
+    assert now["[subs] ep09 final.mkv"] == ("sure", "The Harbour Line", "series", 2, 9)
+    assert now["[subs] S01E05 final.mkv"] == ("sure", "The Harbour Line", "series", 1, 5)
+
+
+def test_a_season_or_episode_the_show_doesnt_have_is_asked_about(
+    keyed: DataPaths, conn: sqlite3.Connection, root: Path
+):
+    library(conn, root, ["Downloads/[subs] ep08 final.mkv"])
+    identify(keyed, conn, internet())
+    [file_id] = ids(conn).values()
+    owner = Identifier(keyed, internet(), now=lambda: NOW)
+
+    with pytest.raises(UnplacedError) as no_season:
+        owner.choose(conn, file_id, 4101, Kind.EPISODE, season=4)
+    with pytest.raises(UnplacedError) as no_episode:
+        owner.choose(conn, file_id, 4101, Kind.EPISODE, episode=12, season=3)
+
+    assert str(no_season.value) == "Which season is it? The Harbour Line has seasons 1 to 3."
+    assert str(no_episode.value) == (
+        "Which episode is it? Season 3 of The Harbour Line has 10 episodes."
+    )
+    assert placed(conn)["[subs] ep08 final.mkv"][0] != "sure"  # it still waits
+
+
 def test_the_owner_makes_a_burnt_disc_a_film(
     keyed: DataPaths, conn: sqlite3.Connection, root: Path
 ):

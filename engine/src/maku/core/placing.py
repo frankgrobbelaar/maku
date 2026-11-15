@@ -80,6 +80,24 @@ def place(parsed: ParsedName, show: Show, entry: Entry | None = None) -> Placeme
     return found
 
 
+def in_season(parsed: ParsedName, show: Show, season: int) -> Placement | None:
+    """Where an episode goes that the owner says is in `season` of the show: its number there, as
+    the show lists the season, or else its number counted through the show when that lands in the
+    season ("The Harbour Line - 015" is season 2's seventh). Whatever season its name or folder
+    gives, the owner's word counts. None when the season doesn't hold it."""
+    number = parsed.episode
+    if number is None:
+        return None
+    listed = {episode.number for episode in show.season(season)}
+    if number in listed:
+        last = parsed.episode_end
+        if last is not None and not (number < last and last in listed):
+            last = None
+        return Placement(season, number, last, How.NUMBERED)
+    found = _from(show_episodes(show), number - 1, parsed, How.STRAIGHT)
+    return found if found is not None and found.season == season else None
+
+
 def numbered_through(files: Iterable[FileFacts], show: Show) -> set[int]:
     """The files (by id) in a season's folder that count straight through the show, not from 1
     in each season: "Season 02/Glass Orchard - 13" after season 1's 12 is season 2's first.

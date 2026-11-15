@@ -8,6 +8,14 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Fixed
+- "Which title is this?" asks for an episode's season as well as its number, both starting as
+  the file's name gives them. Change either and the video goes exactly there, so an episode
+  named S03E08 no longer lands in season 1, and the other files from the same folder whose
+  names give no season go in the same season.
+- A very long title no longer stretches "Which title is this?" past the window: the button
+  reads "Confirm episode 3 of …", and a long title is shortened to fit.
+
 ## 1.3.0 - 2026-11-13
 
 ### Added

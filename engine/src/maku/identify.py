@@ -36,7 +36,7 @@ from maku.core.identify import (
     with_year,
 )
 from maku.core.names import Kind, ParsedName, parse_name
-from maku.core.placing import Placement, named_special, numbered_through, place
+from maku.core.placing import Placement, in_season, named_special, numbered_through, place
 from maku.titles import show_of
 from maku.tmdb import Tmdb
 from maku.web import Send, WebError
@@ -194,19 +194,24 @@ class Identifier:
         *,
         also: Sequence[int] = (),
         episode: int | None = None,
+        season: int | None = None,
     ) -> int:
         """The owner's choice: this file, and the others that are the same one (`also`), are
         this TMDB show or film (`entry_id`, core/catalog.py), as episodes, a film, or specials.
-        `episode` is the file's number when its name has none Maku can use. It's pinned, so no
-        rescan undoes it. Returns how many files it placed; one of `also` that Maku can't place
-        keeps waiting. A special Maku can't number still belongs to its show (an extra, say).
+        `episode` is the file's number when its name has none Maku can use, and `season` the
+        season the owner says it's in: then the file goes there (core/placing.py's in_season),
+        and so do those of `also` whose names say no season of their own, each by its own number.
+        It's pinned, so no rescan undoes it. Returns how many files it placed; one of `also` that
+        Maku can't place keeps waiting. A special Maku can't number still belongs to its show (an
+        extra, say).
 
         Raises UnplacedError when the file is an episode Maku can't place, LookupError when TMDB
         has no such show or film (NoKeyError without a key), and WebError when TMDB can't be
         asked right now.
         """
         ids = [file_id, *(other for other in also if other != file_id)]
-        return self._place(conn, file_id, entry_id, dict.fromkeys(ids, as_kind), episode).placed
+        kinds = dict.fromkeys(ids, as_kind)
+        return self._place(conn, file_id, entry_id, kinds, episode, season, alike=True).placed
 
     def rematch(
         self,
@@ -217,11 +222,13 @@ class Identifier:
         as_kind: Kind,
         *,
         episode: int | None = None,
+        season: int | None = None,
     ) -> Placed:
         """The owner's new match for a whole title, chosen for one of its files (`file_id`, its
         first episode as maku/review.py shows it): every file of the title is this show or film.
         The files of that file's kind become `as_kind`; the others keep theirs, so a series'
-        specials stay specials. A file that doesn't fit the entry waits for the owner.
+        specials stay specials. A file that doesn't fit the entry waits for the owner. `episode`
+        and `season` are that one file's, as `choose` takes them: the others go by their names.
 
         Raises LookupError when the file isn't the title's, and otherwise as `choose` does.
         """
@@ -239,7 +246,7 @@ class Identifier:
         kinds = {file_id: as_kind} | {
             other: kind if other in kept else as_kind for other, kind in now.items()
         }
-        return self._place(conn, file_id, entry_id, kinds, episode, kept=kept)
+        return self._place(conn, file_id, entry_id, kinds, episode, season, kept=kept)
 
     def _place(
         self,
@@ -248,13 +255,17 @@ class Identifier:
         entry_id: int,
         kinds: dict[int, Kind],
         episode: int | None,
+        season: int | None,
         *,
         kept: Collection[int] = (),
+        alike: bool = False,
     ) -> Placed:
         """Places the files (`kinds`, the owner's file first) in a show or film, pinned. An
         episode Maku can't place keeps waiting, or waits now; so does a file that keeps its own
         kind (`kept`, in a whole title's change) and doesn't fit. One the show's kept list can't
-        place has it asked of TMDB again first: it may be newer than the list."""
+        place has it asked of TMDB again first: it may be newer than the list. The season the
+        owner gives goes for their file, and with `alike` for the others whose names say none of
+        their own."""
         tmdb = self._catalog.tmdb()
         entry = self._catalog.entry(entry_id)
         home = self._title_for(conn, entry, tmdb) if entry else None
@@ -263,12 +274,17 @@ class Identifier:
         film = home.film or entry.kind is TitleKind.MOVIE or kinds[file_id] is Kind.MOVIE
         files = _facts(conn, list(kinds))
         typed = {file_id: episode} if episode is not None else {}
+        told = {
+            facts.id: given
+            for facts in files
+            if (given := _season_told(facts, file_id, kinds[facts.id], season, alike=alike))
+        }
         wheres: dict[int, Placement | None] = {facts.id: None for facts in files}
         if not film:
-            wheres = _chosen_places(conn, files, kinds, typed, entry, home)
+            wheres = _chosen_places(conn, files, kinds, typed, told, entry, home)
             if None in wheres.values() and not home.fresh:
                 home = self._afresh(conn, entry, home, tmdb)
-                wheres = _chosen_places(conn, files, kinds, typed, entry, home)
+                wheres = _chosen_places(conn, files, kinds, typed, told, entry, home)
         chosen: list[tuple[FileFacts, Placement | None, Kind]] = []
         unfit: list[int] = []
         for facts in files:
@@ -276,6 +292,8 @@ class Identifier:
             if where is None and not film and (as_kind is Kind.EPISODE or facts.id in kept):
                 if facts.id == file_id:
                     number = episode if episode is not None else facts.parsed.episode
+                    if file_id in told and home.show is not None:
+                        raise UnplacedError(_which_in_season(home.show, number, told[file_id]))
                     raise UnplacedError(_which_episode(entry, number, _season(facts.parsed)))
                 unfit.append(facts.id)
                 continue
@@ -724,11 +742,13 @@ def _chosen_places(
     files: Sequence[FileFacts],
     kinds: Mapping[int, Kind],
     typed: Mapping[int, int],
+    told: Mapping[int, int],
     entry: Entry,
     home: _Home,
 ) -> dict[int, Placement | None]:
     """Where the files the owner chose a show for sit in it: each as the kind chosen for it
-    (`kinds`), by the number the owner gave it (`typed`) or else by its name."""
+    (`kinds`), by the number the owner gave it (`typed`) or else by its name, and in the season
+    the owner gave it (`told`) when there's one."""
     through = _numbered_through(conn, files, home)
     wheres: dict[int, Placement | None] = {}
     for facts in files:
@@ -740,8 +760,24 @@ def _chosen_places(
                 parsed = replace(parsed, season=0)
         elif facts.id in through:
             parsed = replace(parsed, folder_season=None)  # its number places it
-        wheres[facts.id] = _placement(parsed, entry, home)
+        if (season := told.get(facts.id)) is not None and home.show is not None:
+            wheres[facts.id] = in_season(parsed, home.show, season)
+        else:
+            wheres[facts.id] = _placement(parsed, entry, home)
     return wheres
+
+
+def _season_told(
+    facts: FileFacts, file_id: int, as_kind: Kind, season: int | None, *, alike: bool
+) -> int | None:
+    """The season the owner gives a file: theirs, and with `alike` the others' whose names (and
+    folders) say none of their own. Only an episode has one: a special's is 0."""
+    if season is None or as_kind is not Kind.EPISODE:
+        return None
+    if facts.id == file_id:
+        return season
+    own = facts.parsed.season is not None or facts.parsed.folder_season is not None
+    return season if alike and not own else None
 
 
 def _numbered_through(
@@ -789,6 +825,29 @@ def _which_episode(entry: Entry, number: int | None, season: int | None) -> str:
     if season:
         return f"Which episode is it? {entry.title} has no season {season} episode {number}."
     return f"Which episode is it? {entry.title} has no episode {number}."
+
+
+def _which_in_season(show: Show, number: int | None, season: int) -> str:
+    """What the owner is asked when the season they gave doesn't hold the episode."""
+    if number is None:
+        return "Which episode is it? Maku can't tell from its name."
+    held = show.season(season)
+    if not held:
+        return f"Which season is it? {show.title} has {_seasons(show.seasons)}."
+    count = "1 episode" if len(held) == 1 else f"{len(held)} episodes"
+    return f"Which episode is it? Season {season} of {show.title} has {count}."
+
+
+def _seasons(numbers: Sequence[int]) -> str:
+    """A show's seasons in words: "seasons 1 to 3", "only season 1"."""
+    if not numbers:
+        return "no seasons listed yet"
+    if len(numbers) == 1:
+        return f"only season {numbers[0]}"
+    if list(numbers) == list(range(numbers[0], numbers[-1] + 1)):
+        return f"seasons {numbers[0]} to {numbers[-1]}"
+    *rest, last = (str(number) for number in numbers)
+    return f"seasons {', '.join(rest)} and {last}"
 
 
 def due(row: sqlite3.Row, now: datetime) -> bool:

@@ -1212,9 +1212,27 @@ export interface Chosen {
   titleId: number | null;
 }
 
+/** What the owner chose for a file waiting for a match: the body `useChooseMatch` sends. */
+export interface Choice {
+  /** The TMDB entry: a show's number, or a film's negated. */
+  entryId: number;
+  kind: "episode" | "movie" | "special";
+  /** Other files that are the same series or film, numbered from their names. */
+  also?: number[];
+  /** The title whose match changes, all its files at once (instead of `also`). */
+  title?: number;
+  /** The file's number, when the owner gives one its name doesn't. */
+  episode?: number;
+  /**
+   * The season the owner says it's in, 1 or more: it goes there among the show's seasons, and so
+   * do the files of `also` whose names say no season.
+   */
+  season?: number;
+}
+
 /**
- * The owner's choice: `choose.mutate({ path: "/review/7", body: { entryId, kind, also, episode } })`,
- * or with `title` instead of `also`, a whole title's new match (each file keeps its kind).
+ * The owner's choice: `choose.mutate({ path: "/review/7", body: choice })` (a `Choice`), or with
+ * `title` instead of `also`, a whole title's new match (each file keeps its kind).
  */
 export const useChooseMatch = () =>
   useEngineAction<Chosen>([

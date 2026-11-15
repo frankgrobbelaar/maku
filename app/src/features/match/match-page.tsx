@@ -1,6 +1,6 @@
 import { Check, Play, Search } from "lucide-react";
 import { RadioGroup } from "radix-ui";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Breadcrumb, LIBRARY } from "@/components/breadcrumb";
 import { type Asking, ConfirmDelete, Deleted, useDeleting } from "@/components/delete";
@@ -15,6 +15,7 @@ import { MenuItem, MenuSeparator, RowMenu } from "@/components/ui/menu";
 import { Segmented } from "@/components/ui/segmented";
 import { type PlayItem, usePlayer } from "@/features/player/player-context";
 import {
+  type Choice,
   type Guess,
   type TidyResult,
   useChooseMatch,
@@ -196,10 +197,18 @@ function MatchFile(props: {
   const guesses = searching ? (found.data ?? []) : file.guesses;
   const [picked, setPicked] = useState<number | null>(file.guesses[0]?.entryId ?? null);
   const [kind, setKind] = useState<Kind>(asKind(file.kind));
-  // An episode's number starts as its name gives it; a special's starts blank.
+  // An episode's season and number start as its name (or its folder) gives them; a special's
+  // number starts blank. Season 0 holds the specials, which the kind says.
+  const namedSeason = file.season ? String(file.season) : "";
   const named = file.episode === null ? "" : String(file.episode);
-  const [numbers, setNumbers] = useState({ episode: named, special: "" });
+  const [numbers, setNumbers] = useState({ season: namedSeason, episode: named, special: "" });
   const number = kind === "movie" ? "" : numbers[kind];
+  const season = kind === "episode" && Number(numbers.season) >= 1 ? Number(numbers.season) : null;
+  // Changed by the owner, an episode's numbers say where it goes. Left as its name gives them,
+  // Maku reads the name as a scan does: by its season, or through the show.
+  const changed = numbers.season !== namedSeason || numbers.episode !== named;
+  const told = changed ? season : null;
+  const where = numbered(kind, season, number);
   const [together, setTogether] = useState(true);
   const chosen = guesses.find((guess) => guess.entryId === picked) ?? null;
   const busy = choose.isPending || ignore.isPending;
@@ -218,15 +227,21 @@ function MatchFile(props: {
 
   function confirm() {
     if (!chosen) return;
-    // The number goes only when the owner gave one its name doesn't.
+    // The number goes only when the owner gave one its name doesn't, and the season with any
+    // change to an episode's numbers.
     const given = number !== "" && (kind === "special" || number !== named);
-    const episode = given ? Number(number) : undefined;
     // A whole title goes at once, each file keeping its kind; or the file, with its alike.
     const which = forTitle ? { title: forTitle.id } : { also: together ? file.alike : [] };
     choose.mutate(
       {
         path: `/review/${file.id}`,
-        body: { entryId: chosen.entryId, kind, episode, ...which },
+        body: {
+          entryId: chosen.entryId,
+          kind,
+          ...(given ? { episode: Number(number) } : {}),
+          ...(told !== null ? { season: told } : {}),
+          ...which,
+        } satisfies Choice,
       },
       {
         onSuccess: (answer) => {
@@ -319,7 +334,7 @@ function MatchFile(props: {
               className="flex flex-col gap-2.5"
             >
               {guesses.slice(0, searching ? 6 : 3).map((guess, index) => (
-                <GuessOption key={guess.entryId} guess={guess} index={index} file={file} />
+                <GuessOption key={guess.entryId} guess={guess} index={index} where={where} />
               ))}
             </RadioGroup.Root>
           ) : (
@@ -352,22 +367,38 @@ function MatchFile(props: {
             <span className="font-bold text-13">It is a</span>
             <Segmented label="Kind of file" value={kind} options={KINDS} onChange={setKind} />
           </div>
-          {kind !== "movie" && (
+          {kind === "episode" && (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <label htmlFor="match-number" className="font-bold text-13">
-                {kind === "special" ? "Which special" : "Which episode"}
-              </label>
-              <Input
-                id="match-number"
-                inputMode="numeric"
-                autoComplete="off"
-                value={number}
-                onChange={(event) => {
-                  const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
-                  setNumbers((before) => ({ ...before, [kind]: digits }));
-                }}
-                placeholder={kind === "special" ? "If you know it" : "Its number"}
-                className="h-10 w-36 text-right font-mono text-13 placeholder:font-sans"
+              <span id="match-which" className="font-bold text-13">
+                Which episode
+              </span>
+              <fieldset aria-labelledby="match-which" className="flex items-center gap-2.5">
+                <NumberField
+                  label="Season"
+                  labelClassName="text-13 text-fg-muted"
+                  value={numbers.season}
+                  onChange={(digits) => setNumbers((before) => ({ ...before, season: digits }))}
+                  className="w-16 px-3"
+                />
+                <NumberField
+                  label="Episode"
+                  labelClassName="text-13 text-fg-muted"
+                  value={numbers.episode}
+                  onChange={(digits) => setNumbers((before) => ({ ...before, episode: digits }))}
+                  className="w-20 px-3"
+                />
+              </fieldset>
+            </div>
+          )}
+          {kind === "special" && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <NumberField
+                label="Which special"
+                labelClassName="font-bold text-13"
+                value={numbers.special}
+                onChange={(digits) => setNumbers((before) => ({ ...before, special: digits }))}
+                placeholder="If you know it"
+                className="w-36"
               />
             </div>
           )}
@@ -376,6 +407,7 @@ function MatchFile(props: {
             <Together
               file={file}
               others={props.next.filter((other) => file.alike.includes(other.id))}
+              season={told}
               wholeTitle={forTitle !== null}
               on={together}
               onChange={setTogether}
@@ -391,8 +423,17 @@ function MatchFile(props: {
             <span className="text-12 text-fg-faint">
               Your choice is remembered, so a rescan never undoes it.
             </span>
-            <Button variant="primary" disabled={!chosen || busy} onClick={confirm}>
-              {chosen ? confirmText(chosen, kind, number) : "Pick the series or film first"}
+            {/* A long title shortens to fit, after the episode: the button never widens the
+                page. */}
+            <Button
+              variant="primary"
+              disabled={!chosen || busy}
+              onClick={confirm}
+              className="ml-auto min-w-0 max-w-full"
+            >
+              <span className="min-w-0 truncate">
+                {chosen ? confirmText(chosen.title, where) : "Pick the series or film first"}
+              </span>
             </Button>
           </div>
         </section>
@@ -492,6 +533,34 @@ function Still(props: { fileId: number; index: number; at: string; onPlay: () =>
   );
 }
 
+/** A number the owner types, after its label: digits only, four at most. */
+function NumberField(props: {
+  label: string;
+  labelClassName: string;
+  value: string;
+  onChange: (digits: string) => void;
+  placeholder?: string;
+  className: string;
+}) {
+  const id = useId();
+  return (
+    <>
+      <label htmlFor={id} className={props.labelClassName}>
+        {props.label}
+      </label>
+      <Input
+        id={id}
+        inputMode="numeric"
+        autoComplete="off"
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value.replace(/\D/g, "").slice(0, 4))}
+        placeholder={props.placeholder ?? "\u2013"}
+        className={cn("h-10 text-right font-mono text-13 placeholder:font-sans", props.className)}
+      />
+    </>
+  );
+}
+
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
@@ -501,7 +570,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function GuessOption({ guess, index, file }: { guess: Guess; index: number; file: WaitingFile }) {
+function GuessOption(props: { guess: Guess; index: number; where: string | null }) {
+  const { guess, index, where } = props;
   const cover = useCover(guess.cover);
   const facts = [
     guess.kind ? kindWord(guess.kind) : null,
@@ -523,12 +593,12 @@ function GuessOption({ guess, index, file }: { guess: Guess; index: number; file
         {cover && <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-extrabold">
+        <span className="font-extrabold [overflow-wrap:anywhere]">
           {guess.title}
           {guess.year ? ` (${guess.year})` : ""}
         </span>
         <span className="text-12 text-fg-muted">
-          {file.episode !== null && guess.kind !== "movie" ? `Episode ${file.episode} · ` : ""}
+          {where && guess.kind !== "movie" ? `${capitalized(where)} · ` : ""}
           {facts.join(" · ")}
         </span>
         <span className="flex items-center gap-2 text-12">
@@ -551,6 +621,8 @@ function GuessOption({ guess, index, file }: { guess: Guess; index: number; file
 function Together(props: {
   file: WaitingFile;
   others: WaitingFile[];
+  /** The season the owner gave: the others whose names say none go there too. */
+  season: number | null;
   /** The others are the rest of a title's files, wherever they are. */
   wholeTitle: boolean;
   on: boolean;
@@ -558,10 +630,16 @@ function Together(props: {
 }) {
   const count = props.file.alike.length;
   const tag = props.file.group ? `[${props.file.group}] ` : "";
-  const numbers = props.others
-    .map((other) => other.episode)
-    .filter((episode): episode is number => episode !== null)
-    .map((episode) => String(episode).padStart(2, "0"));
+  const others = props.others.flatMap((other) =>
+    other.episode === null
+      ? []
+      : [{ season: other.season ?? props.season, episode: other.episode }],
+  );
+  // "S02E04 and S02E05" when each has its season, else "Episodes 04 and 05".
+  const coded = others.every((other) => other.season !== null);
+  const numbers = others.map((other) =>
+    coded && other.season !== null ? code(other.season, other.episode) : pad(other.episode),
+  );
   return (
     <label className="press flex min-h-13 cursor-pointer items-center gap-3 rounded-16 border border-edge bg-glass px-3.5 py-2">
       <input
@@ -587,8 +665,8 @@ function Together(props: {
         </span>
         {numbers.length > 0 && (
           <span className="text-12 text-fg-muted">
-            {numbers.length === 1 ? "Episode" : "Episodes"} {listed(numbers)}, numbered from their
-            names
+            {coded ? "" : numbers.length === 1 ? "Episode " : "Episodes "}
+            {listed(numbers)}, numbered from their names
           </span>
         )}
       </span>
@@ -733,10 +811,29 @@ function asKind(kind: WaitingFile["kind"]): Kind {
   return "episode";
 }
 
-function confirmText(guess: Guess, kind: Kind, number: string): string {
-  if (kind === "episode" && number !== "") return `Confirm ${guess.title}, episode ${number}`;
-  if (kind === "special" && number !== "") return `Confirm ${guess.title}, special ${number}`;
-  return `Confirm ${guess.title}`;
+/** "Confirm S03E08 of Quiet Hours": the episode first, so a long title can shorten after it. */
+function confirmText(title: string, where: string | null): string {
+  return where ? `Confirm ${where} of ${title}` : `Confirm ${title}`;
+}
+
+/** What the numbers on the page make the file: "S03E08", "episode 8", "special 2", or none. */
+function numbered(kind: Kind, season: number | null, number: string): string | null {
+  if (kind === "movie" || number === "") return null;
+  if (kind === "special") return `special ${Number(number)}`;
+  return season !== null ? code(season, Number(number)) : `episode ${Number(number)}`;
+}
+
+/** "S03E08". */
+function code(season: number, episode: number): string {
+  return `S${pad(season)}E${pad(episode)}`;
+}
+
+function pad(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function describe(file: WaitingFile): string {
