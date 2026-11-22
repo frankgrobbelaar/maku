@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 1.4.0 - 2026-11-22
+
 ### Changed
 - The engine and the window are built with the newest versions of the libraries they use: FastAPI
   0.165, Typer 0.29 and watchdog 7.1, which notices changes in your folders, and React Router
