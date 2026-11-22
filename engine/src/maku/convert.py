@@ -444,9 +444,13 @@ def settle(
     if plan_id is not None and carry_on:  # the result was checked before the crash
         apply_plan(conn, plan_id, now=now)
         moved = _moved(conn, plan_id)
-    elif plan_id is not None and moved is not None and moved.state is ChangeState.DONE:
-        if any(change.state is ChangeState.PLANNED for change in changes_of(conn, plan_id)):
-            apply_plan(conn, plan_id, now=now)  # what's left: the other copy, its subtitles
+    elif (
+        plan_id is not None
+        and moved is not None
+        and moved.state is ChangeState.DONE
+        and any(change.state is ChangeState.PLANNED for change in changes_of(conn, plan_id))
+    ):
+        apply_plan(conn, plan_id, now=now)  # what's left: the other copy, its subtitles
     if moved is not None and moved.state is ChangeState.DONE:
         try:
             result = read(moved.target) if read else None

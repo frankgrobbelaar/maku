@@ -8,6 +8,11 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Changed
+- The engine and the window are built with the newest versions of the libraries they use: FastAPI
+  0.165, Typer 0.29 and watchdog 7.1, which notices changes in your folders, and React Router
+  8.5.2, TanStack Query 5.108, Lucide's icons 1.77 and Vite 8.3.8.
+
 ## 1.3.1 - 2026-11-15
 
 ### Fixed

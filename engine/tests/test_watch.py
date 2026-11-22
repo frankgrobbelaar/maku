@@ -297,16 +297,17 @@ def test_a_folder_that_comes_back_is_watched_again(
 def test_a_folder_that_goes_has_its_handle_closed_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    # watchdog closes a folder's handle itself when the folder goes, and again when it's
-    # stopped: by then the number may be another file's (the database's), and closing that
-    # crashed the engine.
+    # watchdog 6 closed a folder's handle itself when the folder went, and again when it was
+    # stopped: by then the number could be another file's (the database's), and closing that
+    # crashed the engine. watchdog 7 closes it once, in the thread that reads the folder.
     closed: list[object] = []
+    close: Callable[[Any], None] = vars(winapi)["_close_directory_handle"]
 
     def closing(handle: Any) -> None:
         closed.append(handle)
-        winapi.close_directory_handle(handle)
+        close(handle)
 
-    monkeypatch.setattr("watchdog.observers.read_directory_changes.close_directory_handle", closing)
+    monkeypatch.setattr(winapi, "_close_directory_handle", closing)
     folder = tmp_path / "Videos"
     folder.mkdir()
     observer = observe(str(folder), Changes(lambda: None, holds=lambda _path: True))

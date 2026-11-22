@@ -21,7 +21,7 @@ from collections.abc import Callable
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
@@ -313,30 +313,10 @@ class Watcher:
 
 def observe(path: str, changes: FileSystemEventHandler) -> BaseObserver:
     """Starts watching a folder and everything in it."""
-    observer = BaseObserver(_Emitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
+    observer = BaseObserver(WindowsApiEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
     observer.schedule(changes, path, recursive=True)
     observer.start()
     return observer
-
-
-class _Emitter(WindowsApiEmitter):
-    """watchdog's watcher of a folder on Windows, closing the folder's handle once only. watchdog
-    closes it when the folder goes (its drive unplugged, say) and again when it's stopped; by
-    then Windows may have given the number to another file (the database's), and closing that
-    crashed the engine."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._closing = threading.Lock()
-        self._closed = False
-
-    def on_thread_stop(self) -> None:
-        with self._closing:
-            if self._closed:
-                return
-            self._closed = True
-        super().on_thread_stop()
-        self._whandle = None  # nothing reads it again
 
 
 class Changes(FileSystemEventHandler):
